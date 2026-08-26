@@ -124,12 +124,12 @@ jobs:
           '
 
       - name: Guardar el resultado para GitHub Pages
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist/web
 
       - name: Guardar el mismo resultado para Cloudflare
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: web-build
           path: dist/web
@@ -142,7 +142,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Recuperar el artefacto validado
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: web-build
           path: dist/web
@@ -181,14 +181,14 @@ jobs:
       url: ${{ steps.despliegue.outputs.page_url }}
     steps:
       - name: Recuperar una referencia del artefacto validado
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: web-build
           path: dist/web
 
       - name: Publicar
         id: despliegue
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
       - name: Comprobar que responde
         run: |
