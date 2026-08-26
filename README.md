@@ -88,5 +88,5 @@ Los manuales llevan aviso de «prohibida la reproducción», por lo que la app *
 texto**: los resúmenes son redacción propia y las preguntas se construyen sobre hechos y
 normativa, citando manual y página. Los PDF originales **no se versionan** (`.gitignore`).
 
-El logotipo de Metro es marca registrada de Metro de Madrid, S.A. Se usa en una herramienta
-privada, sin ánimo de lucro y sin relación con la empresa.
+La identidad visual y el icono de la aplicación son propios. Las líneas y estaciones se usan
+como metáfora de estudio; la herramienta no está hecha ni respaldada por Metro de Madrid.

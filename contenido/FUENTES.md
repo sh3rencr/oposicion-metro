@@ -138,9 +138,9 @@ parcial de este Manual"*. Por eso la app **no reproduce su texto**: los resúmen
 propia y las preguntas se construyen sobre hechos y normativa, citando manual y página.
 `fuentes-oficiales/` está en `.gitignore` para no republicar los PDF.
 
-El **logotipo de Metro de Madrid** es marca registrada de Metro de Madrid, S.A. Se usa por
-decisión expresa del responsable del proyecto, en una herramienta privada, sin ánimo de lucro y
-que se declara no oficial en la propia app y en el LEEME.
+La aplicación usa una **identidad visual y un icono propios**. La metáfora de líneas y estaciones
+sirve para organizar el estudio, pero no reproduce la marca visual oficial y se declara no oficial
+en la propia app y en el LEEME.
 
 ## 6. Fuentes descartadas
 

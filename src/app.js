@@ -111,33 +111,19 @@ function claveFicha(ep, ficha) {
 }
 
 /* ===================== identidad visual ===================== */
-/* Logo oficial de Metro de Madrid (marca registrada de Metro de Madrid, S.A.).
-   Se usa aquí en una herramienta de estudio privada y sin ánimo de lucro, que se
-   identifica expresamente como NO oficial en la pantalla "Sobre este contenido". */
-function logoMetro(alto) {
-  return '<img src="' + LOGO_METRO + '" alt="Metro de Madrid" style="height:' + alto + 'px;width:auto;display:block">';
+function icono(nombre, clase) {
+  var ns = 'http://www.w3.org/2000/svg';
+  var svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('class', 'ico' + (clase ? ' ' + clase : ''));
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  var use = document.createElementNS(ns, 'use');
+  use.setAttribute('href', '#i-' + nombre);
+  svg.appendChild(use);
+  return svg;
 }
-/* Emblema alternativo, de dibujo propio, por si algún día conviene no usar la marca. */
-function emblema(tam, fondo, trazo) {
-  return '<svg viewBox="0 0 64 64" width="' + tam + '" height="' + tam + '" aria-hidden="true">' +
-    '<circle cx="32" cy="32" r="30" fill="' + fondo + '"/>' +
-    '<path d="M17 48V31a15 15 0 0 1 30 0v17" fill="none" stroke="' + trazo +
-      '" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '<path d="M25.6 48 29.6 33M38.4 48 34.4 33" stroke="' + trazo +
-      '" stroke-width="3.1" stroke-linecap="round"/>' +
-    '<path d="M27.7 40.5h8.6M26.2 45.5h11.6" stroke="' + trazo +
-      '" stroke-width="2.5" stroke-linecap="round"/>' +
-    '</svg>';
-}
-/* Trazado suelto de líneas, como un plano de metro. Solo decoración. */
-function motivoVia() {
-  return '<svg class="via" width="164" height="132" viewBox="0 0 164 132" aria-hidden="true">' +
-    '<g fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">' +
-    '<path d="M6 122h52a44 44 0 0 0 44-44V10"/>' +
-    '<path d="M40 122h18a16 16 0 0 0 16-16V32"/>' +
-    '<path d="M132 122V60a22 22 0 0 1 22-22h6"/>' +
-    '</g></svg>';
-}
+function marcaEstudio() { return '<span class="marca-propia">M</span>'; }
 function nombreUsuario() {
   return (TEMARIO.usuario && TEMARIO.usuario.nombre) ? String(TEMARIO.usuario.nombre).trim() : '';
 }
@@ -745,63 +731,71 @@ function pInicio(c) {
   var cola = datosCola.lista;
   var r = E.racha;
 
-  var hero = el('div', { class: 'hero' });
-  hero.insertAdjacentHTML('afterbegin', motivoVia());
-  hero.appendChild(el('div', { class: 'cabecera-hero' }, [
-    el('span', { class: 'placa', html: logoMetro(30) }),
-    el('div', { class: 'saludo', text: saludo() })
-  ]));
-  if (cola.length) {
-    hero.appendChild(el('div', { class: 'cifra' }, [
-      el('b', { text: String(cola.length) }),
-      el('span', { text: (cola.length === 1 ? 'pregunta en este bloque' : 'preguntas en este bloque') +
-        (datosCola.total > cola.length ? ' · ' + datosCola.total + ' pendientes en total' : '') })
-    ]));
-  } else {
-    hero.appendChild(el('div', { class: 'cifra' }, [el('b', { text: '✓' }), el('span', { text: 'hoy ya está el repaso al día' })]));
-  }
-  hero.appendChild(el('div', { class: 'rachah', text: r.dias > 0
-    ? '🔥 ' + plural(r.dias, 'día seguido', 'días seguidos') + ' · récord: ' + plural(r.mejor, 'día', 'días')
-    : 'Responde algo hoy y empiezas racha.' }));
-  hero.appendChild(el('button', { class: 'btn', onclick: function () {
+  var hero = el('section', { class: 'hero' });
+  hero.appendChild(el('div', { class: 'rotulo', text: 'Siguiente estación' }));
+  hero.appendChild(el('h2', { class: 'saludo', text: cola.length ? 'Repaso de hoy' : 'Repaso completado' }));
+  hero.appendChild(el('p', { class: 'entradilla', text: cola.length
+    ? saludo() + '. Tienes una ruta breve para mantener fresco lo que empieza a olvidarse.'
+    : saludo() + '. Hoy no quedan preguntas pendientes; puedes avanzar por otra línea de estudio.' }));
+
+  var textoCola = cola.length
+    ? plural(cola.length, 'pregunta preparada', 'preguntas preparadas') +
+      (datosCola.total > cola.length ? ' · ' + datosCola.total + ' pendientes en total' : '')
+    : 'Todo el repaso previsto está al día';
+  var cifraRuta = el('span', { class: 'ruta-cifra', 'aria-label': cola.length ? plural(cola.length, 'pregunta', 'preguntas') : 'Repaso completado' },
+    cola.length ? [String(cola.length)] : [icono('check')]);
+  var ruta = el('div', { class: 'ruta-card' }, [
+    el('div', { class: 'ruta-cab' }, [el('b', { text: textoCola }), cifraRuta]),
+    el('div', { class: 'ruta-estaciones', 'aria-hidden': 'true' }, [
+      el('span', { class: 'ruta-estacion actual' }, [el('i'), document.createTextNode('Repaso')]),
+      el('span', { class: 'ruta-estacion' }, [el('i'), document.createTextNode('Temario')]),
+      el('span', { class: 'ruta-estacion' }, [el('i'), document.createTextNode('Test')]),
+      el('span', { class: 'ruta-estacion' }, [el('i'), document.createTextNode('Simulacro')])
+    ])
+  ]);
+  hero.appendChild(ruta);
+  hero.appendChild(el('button', { class: 'btn primario', onclick: function () {
     if (cola.length) ir(pRepaso, 'Repaso de hoy'); else ir(pTestConfig, 'Hacer un test');
-  } }, [cola.length ? 'Empezar el repaso de hoy' : 'Hacer un test de todos modos']));
+  } }, [icono(cola.length ? 'play' : 'list-checks'), cola.length ? 'Comenzar la ruta' : 'Hacer un test']));
+  hero.appendChild(el('div', { class: 'rachah', text: r.dias > 0
+    ? 'Racha: ' + plural(r.dias, 'día seguido', 'días seguidos') + ' · récord: ' + plural(r.mejor, 'día', 'días')
+    : 'Responde algo hoy y empiezas racha.' }));
   c.appendChild(hero);
 
-  if (!EXAMEN.formato_confirmado) {
-    c.appendChild(el('div', { class: 'aviso', html:
-      '<b>Ojo:</b> las bases de 2026 no dicen cuántas preguntas tiene el examen. El simulacro usa ' +
-      EXAMEN.preguntas_simulacro + ' preguntas y ' + EXAMEN.minutos_simulacro +
-      ' minutos como estimación, a partir de convocatorias anteriores.' }));
-  }
-
+  c.appendChild(el('div', { class: 'cab-seccion' }, [
+    el('h2', { text: 'Otras líneas' }),
+    el('span', { text: plural(PREGUNTAS.length, 'pregunta', 'preguntas') })
+  ]));
   var menu = el('div', { class: 'menu' });
-  function boton(emoji, tit, sub, fn, tituloPantalla, primario) {
-    menu.appendChild(el('button', { class: 'btn' + (primario ? ' primario' : ''), onclick: function () { ir(fn, tituloPantalla); } }, [
-      el('span', { class: 'emoji', text: emoji }),
+  function boton(nombreIcono, tit, sub, fn, tituloPantalla) {
+    menu.appendChild(el('button', { class: 'btn', onclick: function () { ir(fn, tituloPantalla); } }, [
+      el('span', { class: 'icono-menu' }, [icono(nombreIcono)]),
       el('span', { class: 'txt' }, [el('b', { text: tit }), el('span', { text: sub })])
     ]));
   }
-  boton('📖', 'Estudiar tema', 'Lee el resumen de cada tema y ponte a prueba', pPartes, 'Estudiar tema');
-  boton('✏️', 'Hacer un test', 'De un tema o mezclado, con corrección al momento', pTestConfig, 'Hacer un test');
-  boton('⏱️', 'Simulacro de examen', EXAMEN.preguntas_simulacro + ' preguntas cronometradas, como el día real', pSimulacroIntro, 'Simulacro de examen');
-  boton('🔁', 'Repaso inteligente', 'Te pone justo lo que estás a punto de olvidar', pRepaso, 'Repaso de hoy', cola.length > 0);
-  boton('🧠', 'Psicotécnicos', 'Series, palabras y figuras: los otros 20 puntos', pPsicoMenu, 'Psicotécnicos');
+  boton('book', 'Temario', 'Estudia por partes y epígrafes', pPartes, 'Estudiar tema');
+  boton('list-checks', 'Test rápido', 'Configura una tanda a tu medida', pTestConfig, 'Hacer un test');
+  boton('timer', 'Simulacro', EXAMEN.preguntas_simulacro + ' preguntas y ' + EXAMEN.minutos_simulacro + ' minutos orientativos', pSimulacroIntro, 'Simulacro de examen');
+  boton('shapes', 'Psicotécnicos', 'Series, vocabulario y razonamiento espacial', pPsicoMenu, 'Psicotécnicos');
 
   c.appendChild(menu);
 
-  c.appendChild(el('div', { class: 'seccion-tit', text: 'Además' }));
-  var extra = el('div', { class: 'lista' });
-  function fila(emoji, tit, sub, fn, tp) {
-    extra.appendChild(el('button', { class: 'item', onclick: function () { ir(fn, tp); } }, [
-      el('span', { class: 'cod', text: emoji }),
-      el('span', { class: 'cuerpo' }, [el('b', { text: tit }), el('small', { text: sub })]),
-      el('span', { class: 'flecha', text: '›' })
+  if (!EXAMEN.formato_confirmado) {
+    c.appendChild(el('div', { class: 'aviso compacto', role: 'note' }, [
+      icono('info'),
+      el('span', { text: 'Las bases de 2026 no fijan el formato. El simulacro usa ' +
+        EXAMEN.preguntas_simulacro + ' preguntas y ' + EXAMEN.minutos_simulacro +
+        ' minutos como estimación basada en convocatorias anteriores.' })
     ]));
   }
-  fila('📊', 'Mi progreso', 'Dominio por parte, racha y notas de simulacro', pProgreso, 'Mi progreso');
-  fila('💾', 'Copia de seguridad', 'Guardar o recuperar tu progreso', pCopia, 'Copia de seguridad');
-  fila('ℹ️', 'Sobre este contenido', 'De dónde sale todo esto y qué límites tiene', pSobre, 'Sobre este contenido');
+
+  var extra = el('nav', { class: 'extra-nav', 'aria-label': 'Más opciones' });
+  function fila(nombreIcono, tit, fn, tp) {
+    extra.appendChild(el('button', { class: 'btn', onclick: function () { ir(fn, tp); } }, [icono(nombreIcono), tit]));
+  }
+  fila('chart', 'Mi progreso', pProgreso, 'Mi progreso');
+  fila('backup', 'Copia de seguridad', pCopia, 'Copia de seguridad');
+  fila('info', 'Fuentes y límites', pSobre, 'Sobre este contenido');
   c.appendChild(extra);
 }
 
@@ -855,7 +849,7 @@ function pEpigrafes(c, a) {
         el('span', { class: 'cuerpo' }, [
           el('b', { text: ep.titulo }),
           el('small', { text: ep.id + ' · ' + plural(nPreg, 'pregunta', 'preguntas') +
-            ' · ' + plural((ep.fichas || []).length, 'ficha', 'fichas') + (leido ? ' · leído ✓' : '') })
+            ' · ' + plural((ep.fichas || []).length, 'ficha', 'fichas') + (leido ? ' · leído' : '') })
         ]),
         el('span', { class: 'flecha', text: '›' })
       ])
@@ -899,7 +893,7 @@ function pTema(c, a) {
 
   if (ep.fuentes && ep.fuentes.length) {
     c.appendChild(el('p', { class: 'fuente', html: 'Fuente: ' + ep.fuentes.map(function (u) {
-      return '<a href="' + esc(u) + '" target="_blank" rel="noopener">temario oficial ↗</a>';
+      return '<a href="' + esc(u) + '" target="_blank" rel="noopener">abrir el temario oficial</a>';
     }).join(' · ') }));
   }
 
@@ -967,7 +961,7 @@ function pSesion(c, cfg) {
       var queda = Math.ceil((s.deadline - Date.now()) / 1000);
       var cr = $('#crono');
       if (cr) {
-        cr.textContent = '⏱ ' + mmss(Math.max(0, queda));
+        cr.textContent = 'Tiempo ' + mmss(Math.max(0, queda));
         cr.classList.toggle('rojo', queda <= 300);
       }
       if (queda <= 0) { clearInterval(tempo); terminar(true); }
@@ -999,7 +993,7 @@ function pSesion(c, cfg) {
     cabecera.innerHTML = '';
     cabecera.appendChild(el('span', { text: 'Pregunta ' + (s.i + 1) + ' de ' + lista.length }));
     cabecera.appendChild(s.deadline
-      ? el('span', { class: 'crono', id: 'crono', text: '⏱ ' + mmss(Math.max(0, Math.ceil((s.deadline - Date.now()) / 1000))) })
+      ? el('span', { class: 'crono', id: 'crono', text: 'Tiempo ' + mmss(Math.max(0, Math.ceil((s.deadline - Date.now()) / 1000))) })
       : el('span', { text: cfg.etiqueta || '' }));
     var pct = (s.i / lista.length) * 100;
     $('i', barra).style.width = pct.toFixed(1) + '%';
@@ -1009,7 +1003,7 @@ function pSesion(c, cfg) {
     var tarjetaP = el('div', { class: 'card' });
     if (p.volatil) {
       tarjetaP.appendChild(el('div', { class: 'chip-volatil',
-        text: '⚠ Dato sujeto a cambios — verificar en la web de Metro (dato de ' + (p.fecha_dato || '?') + ')' }));
+        text: 'Dato sujeto a cambios · verificar en la web de Metro (dato de ' + (p.fecha_dato || '?') + ')' }));
     }
     tarjetaP.appendChild(el('div', { class: 'enunciado', text: p.enunciado }));
 
@@ -1116,14 +1110,17 @@ function pSesion(c, cfg) {
 function bloqueExplicacion(p, acerto) {
   var b = el('div', { class: 'feedback ' + (acerto ? 'bien' : 'mal'), role: 'status',
     'aria-live': 'polite', tabindex: '-1' });
-  b.appendChild(el('div', { class: 'cab', text: acerto ? '✓ Correcto' : '✗ Incorrecto' }));
+  b.appendChild(el('div', { class: 'cab' }, [icono(acerto ? 'check' : 'x'), acerto ? 'Correcto' : 'Incorrecto']));
   if (!acerto) {
     b.appendChild(el('div', { class: 'exp', style: 'margin-bottom:8px',
       html: '<strong>La respuesta correcta es:</strong> ' + esc(p.opciones[p.correcta]) }));
   }
   b.appendChild(el('div', { class: 'exp', text: p.explicacion }));
-  b.appendChild(el('div', { class: 'fuente', html: '📄 ' + esc(p.fuente_texto || 'Temario oficial') +
-    ' — <a href="' + esc(p.fuente) + '" target="_blank" rel="noopener">abrir la fuente ↗</a>' }));
+  b.appendChild(el('div', { class: 'fuente fuente-enlace' }, [
+    icono('file'),
+    document.createTextNode((p.fuente_texto || 'Temario oficial') + ' — '),
+    el('a', { href: p.fuente, target: '_blank', rel: 'noopener' }, ['Abrir la fuente'])
+  ]));
   return b;
 }
 
@@ -1154,7 +1151,7 @@ function pResultado(c, res) {
   var umbral = EXAMEN.umbral_aprobado_porcentaje;
   var aprueba = pct >= umbral;
 
-  if (res.porTiempo) c.appendChild(el('div', { class: 'aviso', text: '⏱ Se acabó el tiempo. Se ha corregido lo respondido hasta ese momento.' }));
+  if (res.porTiempo) c.appendChild(el('div', { class: 'aviso', text: 'Se acabó el tiempo. Se ha corregido lo respondido hasta ese momento.' }));
 
   var tarj = el('div', { class: 'card' });
   tarj.appendChild(el('div', { class: 'nota' }, [
@@ -1266,7 +1263,7 @@ function pTestConfig(c) {
       b.setAttribute('aria-pressed', 'true');
       refrescar();
     } }, [
-      el('span', { class: 'cod', text: o.id === 'todo' ? '★' : o.id.split(':')[1] }),
+      el('span', { class: 'cod' }, o.id === 'todo' ? [icono('star')] : [o.id.split(':')[1]]),
       el('span', { class: 'cuerpo' }, [el('b', { text: o.tit }), el('small', { text: o.sub })])
     ]);
     botonesSel.push(b); selector.appendChild(b);
@@ -1449,7 +1446,10 @@ function pFichas(c, a) {
     }
     if (sesion.i >= sesion.fichas.length) {
       cont.innerHTML = '';
-      cont.appendChild(el('div', { class: 'vacio', html: '<p style="font-size:2.5rem;margin:0 0 8px">🎉</p><p><b>Fichas terminadas' + esc(coma()) + '.</b></p>' }));
+      cont.appendChild(el('div', { class: 'vacio' }, [
+        el('span', { class: 'fin-icono' }, [icono('check')]),
+        el('p', { html: '<b>Fichas terminadas' + esc(coma()) + '.</b>' })
+      ]));
       cont.appendChild(el('button', { class: 'btn primario', onclick: function () {
         sesion.i = 0; sesion.girada = false;
         sesion.fichas = baraja(sesion.fichas.map(function (f) {
@@ -1472,8 +1472,8 @@ function pFichas(c, a) {
 
     if (sesion.girada) {
       var fila = el('div', { class: 'fila' });
-      fila.appendChild(el('button', { class: 'btn', onclick: function () { responder(false); } }, ['✗ No la sabía']));
-      fila.appendChild(el('button', { class: 'btn primario', onclick: function () { responder(true); } }, ['✓ La sabía']));
+      fila.appendChild(el('button', { class: 'btn', onclick: function () { responder(false); } }, [icono('x'), 'No la sabía']));
+      fila.appendChild(el('button', { class: 'btn primario', onclick: function () { responder(true); } }, [icono('check'), 'La sabía']));
       cont.appendChild(fila);
       teclado = { seguir: function () { responder(true); return true; },
                   opcion: function (n) { if (n === 0) { responder(false); return true; } if (n === 1) { responder(true); return true; } return false; } };
@@ -1512,7 +1512,8 @@ function pProgreso(c) {
   var r = E.racha;
   c.appendChild(el('div', { class: 'card' }, [
     el('h2', { text: 'Constancia' }),
-    el('p', { html: '🔥 <b>' + plural(r.dias, 'día seguido', 'días seguidos') + '</b> estudiando · récord: ' + plural(r.mejor, 'día', 'días') }),
+    el('p', {}, [el('b', { text: plural(r.dias, 'día seguido', 'días seguidos') }),
+      document.createTextNode(' estudiando · récord: ' + plural(r.mejor, 'día', 'días'))]),
     el('p', { class: 'fuente', text: 'Cuenta un día cada vez que respondes algo o lees un tema.' })
   ]));
 
@@ -1593,7 +1594,7 @@ function pCopia(c) {
   c.appendChild(el('div', { class: 'card' }, [
     el('h2', { text: 'Guardar tu progreso en un archivo' }),
     el('p', { text: 'Se descarga un archivo pequeño con todo lo que llevas estudiado. Guárdalo donde quieras. Te sirve por si cambias de ordenador o de móvil, o por si borras el historial del navegador.' }),
-    el('button', { class: 'btn primario', onclick: descargarCopia }, ['💾 Guardar mi progreso'])
+    el('button', { class: 'btn primario', onclick: descargarCopia }, [icono('backup'), 'Guardar mi progreso'])
   ]));
 
   var entrada = el('input', { type: 'file', accept: '.json,application/json', class: 'oculto',
@@ -1601,7 +1602,7 @@ function pCopia(c) {
   c.appendChild(el('div', { class: 'card' }, [
     el('h2', { text: 'Recuperar un progreso guardado' }),
     el('p', { text: 'Busca el archivo que guardaste antes. Cuidado: sustituye por completo lo que tengas ahora en este aparato.' }),
-    el('button', { class: 'btn', onclick: function () { entrada.click(); } }, ['📂 Recuperar desde un archivo']),
+    el('button', { class: 'btn', onclick: function () { entrada.click(); } }, [icono('file'), 'Recuperar desde un archivo']),
     entrada
   ]));
 
@@ -1756,7 +1757,7 @@ function pSobre(c) {
     '**Contrasta siempre** con la convocatoria. Las bases y el temario están en la web de Metro de Madrid, y son el único documento que vale.\n\n' +
     '**Cada pregunta lleva su fuente.** Debajo de cada explicación verás el manual y la página de donde sale el dato, con un enlace para abrir el PDF oficial. Si algo no te cuadra, ve a la fuente.\n\n' +
     '**Datos que cambian.** Las preguntas marcadas con un aviso naranja contienen datos que Metro actualiza cada cierto tiempo (número de líneas, tarifas, cifras de red). Verifícalos en la web antes del examen.\n\n' +
-    '**El logotipo** es marca registrada de Metro de Madrid, S.A. Aparece aquí porque esto es una herramienta privada de estudio, sin ánimo de lucro y sin relación con la empresa. Esta aplicación no está hecha, revisada ni respaldada por Metro de Madrid.\n\n' +
+    '**Identidad independiente.** La marca visual y el icono de esta herramienta son propios. El lenguaje de líneas y estaciones solo ayuda a organizar el estudio; esta aplicación no está hecha, revisada ni respaldada por Metro de Madrid.\n\n' +
     '**Lo que las bases de 2026 NO dicen.** No fijan cuántas preguntas tiene el examen ni cuánto dura. La prueba de conocimientos se puntúa de 0 a 40 y hay que sacar al menos 20 para pasar; es eliminatoria. El simulacro de esta aplicación usa una estimación basada en convocatorias anteriores.'
   ) })]));
 
@@ -1765,12 +1766,12 @@ function pSobre(c) {
     el('div', { class: 'lista' }, [
       el('a', { class: 'item', href: 'https://www.metromadrid.es/es/oferta-empleo/maquinista-de-traccion-electrica-y-jefea-de-sector-0',
         target: '_blank', rel: 'noopener' }, [
-        el('span', { class: 'cod', text: '📄' }),
+        el('span', { class: 'cod' }, [icono('file')]),
         el('span', { class: 'cuerpo' }, [el('b', { text: 'Bases y temario oficial' }), el('small', { text: 'metromadrid.es — oferta de empleo' })])
       ]),
       el('a', { class: 'item', href: 'https://www.bocm.es/boletin/CM_Orden_BOCM/2026/08/07/BOCM-20260807-5.PDF',
         target: '_blank', rel: 'noopener' }, [
-        el('span', { class: 'cod', text: '⚖️' }),
+        el('span', { class: 'cod' }, [icono('scale')]),
         el('span', { class: 'cuerpo' }, [el('b', { text: 'Anuncio en el BOCM' }), el('small', { text: '7 de agosto de 2026 · 30 plazas totales: 15 de Maquinista y 15 de Jefe/a de Sector' })])
       ])
     ])
@@ -1855,7 +1856,7 @@ function pPsicoSesion(c, a) {
 
   var reloj = setInterval(function () {
     if (!document.body.contains(zona)) { clearInterval(reloj); return; }
-    var cr = $('#crono'); if (cr) cr.textContent = '⏱ ' + mmss(Math.floor((Date.now() - s.inicio) / 1000));
+    var cr = $('#crono'); if (cr) cr.textContent = 'Tiempo ' + mmss(Math.floor((Date.now() - s.inicio) / 1000));
   }, 1000);
 
   function genera() {
@@ -1872,7 +1873,7 @@ function pPsicoSesion(c, a) {
     var ejercicio = s.ejercicio;
     zona.innerHTML = ''; cabecera.innerHTML = '';
     cabecera.appendChild(el('span', { text: 'Ejercicio ' + (s.i + 1) + ' de ' + total }));
-    cabecera.appendChild(el('span', { class: 'crono', id: 'crono', text: '⏱ ' + mmss(Math.floor((Date.now() - s.inicio) / 1000)) }));
+    cabecera.appendChild(el('span', { class: 'crono', id: 'crono', text: 'Tiempo ' + mmss(Math.floor((Date.now() - s.inicio) / 1000)) }));
     var pctProgreso = (s.i / total) * 100;
     $('i', barra).style.width = pctProgreso.toFixed(1) + '%';
     barra.setAttribute('aria-valuenow', String(Math.round(pctProgreso)));
@@ -1939,7 +1940,7 @@ function pPsicoSesion(c, a) {
 
       var fb = el('div', { class: 'feedback ' + (ok ? 'bien' : 'mal'), role: 'status',
         'aria-live': 'polite', tabindex: '-1' });
-      fb.appendChild(el('div', { class: 'cab', text: ok ? '✓ Correcto' : '✗ Incorrecto' }));
+      fb.appendChild(el('div', { class: 'cab' }, [icono(ok ? 'check' : 'x'), ok ? 'Correcto' : 'Incorrecto']));
       fb.appendChild(el('div', { class: 'exp', text: ejercicio.explicacion }));
       card.appendChild(fb);
 
@@ -1982,8 +1983,9 @@ function aplicarTema() {
     window.matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.setAttribute('data-tema', oscuro ? 'oscuro' : 'claro');
   var b = $('#btn-tema');
-  b.textContent = oscuro ? '☀️' : '🌙';
+  b.replaceChildren(icono(oscuro ? 'sun' : 'moon'));
   b.title = oscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro';
+  b.setAttribute('aria-label', b.title);
 }
 
 // Autoprueba intensiva activada solo de forma explícita en localhost con
@@ -2076,7 +2078,7 @@ $('#btn-tema').addEventListener('click', function () {
   E.tema = oscuroAhora ? 'claro' : 'oscuro';
   guardar(); aplicarTema();
 });
-$('#marca').innerHTML = logoMetro(26);
+$('#marca').innerHTML = marcaEstudio();
 $('#btn-atras').addEventListener('click', function () { atras(); });
 $('#btn-buscar').addEventListener('click', function () {
   var actual = pila[pila.length - 1];

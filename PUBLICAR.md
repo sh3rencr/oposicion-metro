@@ -68,7 +68,7 @@ de un proveedor no impide intentar el otro.
 
 Dijiste que esto es de uso estrictamente privado entre Andrei y tú. Conviene que sepas que
 **una URL `.pages.dev` es pública**: no sale en Google si nadie enlaza, pero cualquiera que
-acierte el nombre entra. Con el logotipo de Metro en la portada, merece la pena pensarlo.
+acierte el nombre entra. Por el nombre y la temática de la herramienta, merece la pena pensarlo.
 
 Dos formas de reducirlo:
 

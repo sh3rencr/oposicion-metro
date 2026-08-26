@@ -7,7 +7,6 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const zlib = require('zlib');
 const crypto = require('crypto');
 
 const RAIZ = __dirname;
@@ -334,84 +333,42 @@ function codificarPNG(w, h, rgba) {
   ]);
 }
 
-/* Decodifica un PNG de paleta de 8 bits sin entrelazar (el formato del logo de Metro). */
-function decodificarPNGPaleta(buf) {
-  let i = 8, paleta = null, trns = null, w = 0, h = 0;
-  const idat = [];
-  while (i < buf.length) {
-    const ln = buf.readUInt32BE(i);
-    const tipo = buf.toString('ascii', i + 4, i + 8);
-    const datos = buf.slice(i + 8, i + 8 + ln);
-    if (tipo === 'IHDR') {
-      w = datos.readUInt32BE(0); h = datos.readUInt32BE(4);
-      if (datos[8] !== 8 || datos[9] !== 3 || datos[12] !== 0) {
-        throw new Error('src/logo-metro.png: se esperaba PNG de paleta de 8 bits sin entrelazar');
-      }
-    } else if (tipo === 'PLTE') paleta = datos;
-    else if (tipo === 'tRNS') trns = datos;
-    else if (tipo === 'IDAT') idat.push(datos);
-    else if (tipo === 'IEND') break;
-    i += 12 + ln;
-  }
-  const crudo = zlib.inflateSync(Buffer.concat(idat));
-  const rgba = Buffer.alloc(w * h * 4);
-  let prev = Buffer.alloc(w), p = 0;
-  for (let y = 0; y < h; y++) {
-    const filtro = crudo[p++];
-    const linea = Buffer.from(crudo.slice(p, p + w)); p += w;
-    for (let x = 0; x < w; x++) {
-      const a = x >= 1 ? linea[x - 1] : 0, b = prev[x], c = x >= 1 ? prev[x - 1] : 0;
-      let v = linea[x];
-      if (filtro === 1) v = (v + a) & 255;
-      else if (filtro === 2) v = (v + b) & 255;
-      else if (filtro === 3) v = (v + ((a + b) >> 1)) & 255;
-      else if (filtro === 4) {
-        const pp = a + b - c, pa = Math.abs(pp - a), pb = Math.abs(pp - b), pc = Math.abs(pp - c);
-        v = (v + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c)) & 255;
-      }
-      linea[x] = v;
-    }
-    for (let x = 0; x < w; x++) {
-      const idx = linea[x], o = (y * w + x) * 4;
-      rgba[o] = paleta[idx * 3]; rgba[o + 1] = paleta[idx * 3 + 1]; rgba[o + 2] = paleta[idx * 3 + 2];
-      rgba[o + 3] = (trns && idx < trns.length) ? trns[idx] : 255;
-    }
-    prev = linea;
-  }
-  return { w, h, rgba };
+function distanciaSegmento(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0;
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }
 
-/* Reescala con muestreo por área y compone sobre un fondo opaco. */
-function escalar(src, destW, destH, fondo) {
-  const out = Buffer.alloc(destW * destH * 4);
-  for (let y = 0; y < destH; y++) {
-    for (let x = 0; x < destW; x++) {
-      const sx0 = Math.floor(x * src.w / destW), sx1 = Math.max(sx0 + 1, Math.floor((x + 1) * src.w / destW));
-      const sy0 = Math.floor(y * src.h / destH), sy1 = Math.max(sy0 + 1, Math.floor((y + 1) * src.h / destH));
-      let r = 0, g = 0, b = 0, a = 0, n = 0;
-      for (let sy = sy0; sy < sy1; sy++) for (let sx = sx0; sx < sx1; sx++) {
-        const o = (sy * src.w + sx) * 4, al = src.rgba[o + 3] / 255;
-        r += src.rgba[o] * al; g += src.rgba[o + 1] * al; b += src.rgba[o + 2] * al; a += al; n++;
-      }
-      const alfa = a / n, o = (y * destW + x) * 4;
-      out[o]     = Math.round(r / n + fondo[0] * (1 - alfa));
-      out[o + 1] = Math.round(g / n + fondo[1] * (1 - alfa));
-      out[o + 2] = Math.round(b / n + fondo[2] * (1 - alfa));
-      out[o + 3] = 255;
-    }
-  }
-  return out;
+function mezclaColor(a, b, t) {
+  return a.map((v, i) => Math.round(v + (b[i] - v) * Math.max(0, Math.min(1, t))));
 }
 
-/* Icono cuadrado: logo centrado sobre blanco. 'margen' deja aire para iconos maskable. */
-function iconoDesdeLogo(logo, tam, proporcion) {
-  const px = Buffer.alloc(tam * tam * 4).fill(255);
-  const destW = Math.round(tam * proporcion);
-  const destH = Math.round(destW * logo.h / logo.w);
-  const escalado = escalar(logo, destW, destH, [255, 255, 255]);
-  const x0 = Math.round((tam - destW) / 2), y0 = Math.round((tam - destH) / 2);
-  for (let y = 0; y < destH; y++) {
-    escalado.copy(px, ((y0 + y) * tam + x0) * 4, y * destW * 4, (y + 1) * destW * 4);
+/* Icono propio: una M geométrica sobre un círculo rojo. No reproduce la marca
+   oficial y mantiene suficiente aire en la variante maskable. */
+function iconoEstudio(tam, proporcion) {
+  const fondo = [247, 243, 235], rojo = [200, 23, 44], tinta = [255, 255, 255];
+  const px = Buffer.alloc(tam * tam * 4);
+  const cx = tam / 2, cy = tam / 2, r = tam * proporcion / 2;
+  const puntos = [
+    [cx - r * .38, cy + r * .32, cx - r * .38, cy - r * .32],
+    [cx - r * .38, cy - r * .32, cx, cy + r * .05],
+    [cx, cy + r * .05, cx + r * .38, cy - r * .32],
+    [cx + r * .38, cy - r * .32, cx + r * .38, cy + r * .32]
+  ];
+  const medioTrazo = r * .075;
+  for (let y = 0; y < tam; y++) for (let x = 0; x < tam; x++) {
+    const sx = x + .5, sy = y + .5;
+    const coberturaCirculo = Math.max(0, Math.min(1, r + .65 - Math.hypot(sx - cx, sy - cy)));
+    let color = mezclaColor(fondo, rojo, coberturaCirculo);
+    let distancia = Infinity;
+    puntos.forEach(([ax, ay, bx, by]) => {
+      distancia = Math.min(distancia, distanciaSegmento(sx, sy, ax, ay, bx, by));
+    });
+    const coberturaM = Math.max(0, Math.min(1, medioTrazo + .65 - distancia)) * coberturaCirculo;
+    color = mezclaColor(color, tinta, coberturaM);
+    const o = (y * tam + x) * 4;
+    px[o] = color[0]; px[o + 1] = color[1]; px[o + 2] = color[2]; px[o + 3] = 255;
   }
   return codificarPNG(tam, tam, px);
 }
@@ -447,19 +404,14 @@ function main() {
   const datos = 'var DATOS = ' + JSON.stringify({ temario, preguntas: banco, legacy_fichas: legacyFichas })
     .replace(/<\//g, '<\\/') + ';';
 
-  const logo = decodificarPNGPaleta(fs.readFileSync(path.join(SRC, 'logo-metro.png')));
-  const icono512 = iconoDesdeLogo(logo, 512, 0.86);
-  const icono192 = iconoDesdeLogo(logo, 192, 0.86);
-  const iconoMask = iconoDesdeLogo(logo, 512, 0.58);   // con aire, para iconos recortables
-  const iconoData = 'data:image/png;base64,' + iconoDesdeLogo(logo, 180, 0.86).toString('base64');
-  // versión ligera del logo para la interfaz (se muestra a ~30 px de alto)
-  const logoUI = codificarPNG(480, Math.round(480 * logo.h / logo.w),
-    escalar(logo, 480, Math.round(480 * logo.h / logo.w), [255, 255, 255]));
-  const logoData = 'data:image/png;base64,' + logoUI.toString('base64');
+  const icono512 = iconoEstudio(512, 0.78);
+  const icono192 = iconoEstudio(192, 0.78);
+  const iconoMask = iconoEstudio(512, 0.58);
+  const iconoData = 'data:image/png;base64,' + iconoEstudio(180, 0.78).toString('base64');
 
   function render({ conManifest }) {
     let h = plantilla
-      .replace('/*__DATOS__*/', () => datos + '\nvar LOGO_METRO = ' + JSON.stringify(logoData) + ';')
+      .replace('/*__DATOS__*/', () => datos)
       .replace('/*__APP__*/', () => appJs)
       .replace(/__ICONO__/g, () => conManifest ? 'icon-192.png' : iconoData);
     if (!conManifest) h = h.replace(/\n?\s*<link rel="manifest"[^>]*>/, '');
@@ -494,8 +446,8 @@ function main() {
     scope: './',
     display: 'standalone',
     orientation: 'portrait',
-    background_color: '#f4f6f9',
-    theme_color: '#0065b3',
+    background_color: '#f7f3eb',
+    theme_color: '#c8172c',
     lang: 'es',
     icons: [
       { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
