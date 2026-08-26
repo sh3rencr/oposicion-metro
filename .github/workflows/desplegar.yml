@@ -1,12 +1,12 @@
 name: Compilar y desplegar
 
-# Se dispara al empujar a main y también a mano desde la pestaña Actions.
 on:
   push:
     branches: [main]
     paths:
       - 'contenido/**'
       - 'src/**'
+      - 'tests/**'
       - 'build.js'
       - '.github/workflows/desplegar.yml'
   workflow_dispatch:
@@ -16,8 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  desplegar:
-    name: Compilar el contenido y publicarlo
+  compilar:
+    name: Compilar y validar una sola vez
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -30,38 +30,82 @@ jobs:
         with:
           node-version: '22'
 
-      # Los JSON de contenido se generan a partir de contenido/fuente/parte-*.js.
-      # Si alguien los ha editado a mano, se habrán desincronizado: aquí se detecta.
       - name: Comprobar que los JSON coinciden con sus ficheros fuente
         run: |
           node contenido/fuente/_fusionar.js
           if ! git diff --quiet -- contenido/temario.json contenido/preguntas.json; then
             echo "✖ Los JSON de contenido no coinciden con contenido/fuente/parte-*.js."
-            echo "  Alguien los ha editado a mano. Ejecuta esto en local y vuelve a subir:"
-            echo "     node contenido/fuente/_fusionar.js && node build.js"
+            echo "  Ejecuta en local: node contenido/fuente/_fusionar.js && node build.js"
             git --no-pager diff --stat -- contenido/temario.json contenido/preguntas.json
             exit 1
           fi
           echo "✔ Contenido sincronizado."
 
-      # build.js valida el contenido y termina con error si algo no cuadra:
-      # una pregunta sin fuente, un epígrafe inexistente, opciones repetidas,
-      # un id duplicado o un dato volátil sin fecha. Si falla, no se despliega.
-      - name: Compilar y validar el contenido
+      - name: Compilar y validar contenido y aislamiento de red
         run: node build.js
 
-      - name: Comprobar que la app es autocontenida
+      - name: Comprobar que la compilación es reproducible
         run: |
-          set -e
-          F=dist/web/index.html
-          test -f "$F"
-          for patron in 'fetch(' 'XMLHttpRequest' 'cdn\.' 'unpkg' 'jsdelivr'; do
-            if grep -qF "$patron" "$F"; then
-              echo "✖ La app hace referencia a «$patron»: debe funcionar sin red."
-              exit 1
-            fi
-          done
-          echo "✔ Sin dependencias externas."
+          antes=$(find dist -type f -print0 | sort -z | xargs -0 sha256sum)
+          node build.js >/tmp/segunda-compilacion.log
+          despues=$(find dist -type f -print0 | sort -z | xargs -0 sha256sum)
+          test "$antes" = "$despues" || {
+            echo "✖ Dos compilaciones del mismo código no producen los mismos bytes."
+            diff <(printf '%s\n' "$antes") <(printf '%s\n' "$despues") || true
+            exit 1
+          }
+          echo "✔ Compilación reproducible byte a byte."
+
+      - name: Someter los generadores a 300.000 casos
+        run: node tests/psicotecnicos.test.js 100000
+
+      - name: Comprobar migraciones y posiciones de respuesta
+        run: node tests/migraciones.test.js
+
+      - name: Probar preguntas y generadores en un navegador real
+        run: |
+          python3 -m http.server 8765 --directory dist/web >/tmp/oposicion-http.log 2>&1 &
+          servidor=$!
+          trap 'kill "$servidor" 2>/dev/null || true' EXIT
+          google-chrome --headless --no-sandbox --disable-gpu --virtual-time-budget=20000 \
+            --dump-dom 'http://127.0.0.1:8765/?autotest=10000' > /tmp/autoprueba.html
+          node <<'NODE'
+          const fs = require('fs');
+          const h = fs.readFileSync('/tmp/autoprueba.html', 'utf8');
+          const m = h.match(/data-autotest="([^"]+)"/);
+          if (!m) throw new Error('La autoprueba no terminó o no publicó resultado.');
+          const dato = m[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+          const r = JSON.parse(dato);
+          if (r.fallos.length) throw new Error('Autoprueba fallida: ' + r.fallos.join(', '));
+          if (!r.preguntas || !r.legadosDeclarados || r.migraciones !== r.legadosDeclarados ||
+              !r.fichasDeclaradas || r.migracionesFichas !== r.fichasDeclaradas ||
+              r.casosBarajado !== r.preguntas * 20) {
+            throw new Error('La autoprueba no cubrió todo el banco: ' + JSON.stringify(r));
+          }
+          console.log(`✔ 30.000 psicotécnicos, ${r.casosBarajado} barajados y ${r.migraciones} migraciones sin fallos.`);
+          NODE
+
+      - name: Comprobar los artefactos offline
+        run: |
+          test -f dist/web/index.html
+          test -f dist/web/sw.js
+          test -f dist/Oposicion-Metro/EMPEZAR-AQUI.html
+          node <<'NODE'
+          const fs = require('fs');
+          const h = fs.readFileSync('dist/web/index.html', 'utf8');
+          const reglas = [
+            [/<script\b[^>]*\bsrc\s*=/i, 'script src'],
+            [/<(?:img|iframe|audio|video|source)\b[^>]*\bsrc\s*=\s*["'](?:https?:)?\/\//i, 'medio externo'],
+            [/@import\s+(?:url\()?\s*["']?(?:https?:)?\/\//i, '@import externo'],
+            [/url\(\s*["']?(?:https?:)?\/\//i, 'url externa'],
+            [/\bfetch\s*\(/, 'fetch'], [/\bXMLHttpRequest\b/, 'XMLHttpRequest'],
+            [/\b(?:WebSocket|EventSource)\s*\(/, 'conexión persistente'],
+            [/\bimportScripts\s*\(/, 'importScripts'], [/\bimport\s*\(/, 'import dinámico']
+          ];
+          const fallos = reglas.filter(([re]) => re.test(h)).map(([, nombre]) => nombre);
+          if (fallos.length) throw new Error('La app no es autocontenida: ' + fallos.join(', '));
+          console.log('✔ HTML autocontenido y arranque web offline generado.');
+          NODE
 
       - name: Resumen del contenido
         run: |
@@ -84,19 +128,37 @@ jobs:
         with:
           path: dist/web
 
-      - name: Publicar en Cloudflare Pages
+      - name: Guardar el mismo resultado para Cloudflare
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: dist/web
+          include-hidden-files: true
+          if-no-files-found: error
+
+  desplegar-cloudflare:
+    name: Publicar en Cloudflare Pages
+    needs: compilar
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recuperar el artefacto validado
+        uses: actions/download-artifact@v5
+        with:
+          name: web-build
+          path: dist/web
+
+      - name: Publicar
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist/web --project-name=oposicion-metro --branch=production
 
-      # Comprobación desde fuera: verifica que la web responde de verdad y sirve
-      # el contenido esperado. Se ejecuta en la red de GitHub, no en la de casa.
       - name: Comprobar que la web responde
         run: |
           set -e
-          echo "IP que resuelve:  $(getent hosts oposicion-metro.pages.dev | awk '{print $1}' | tr '\n' ' ')"
+          esperadas=$(grep -o '"id":"p-' dist/web/index.html | wc -l | tr -d ' ')
+          test "$esperadas" -gt 0 || { echo "✖ El artefacto validado no contiene preguntas"; exit 1; }
           for i in 1 2 3 4 5; do
             codigo=$(curl -sS -m 25 -o /tmp/web.html -w '%{http_code}' https://oposicion-metro.pages.dev/ || echo 000)
             [ "$codigo" = "200" ] && break
@@ -104,16 +166,12 @@ jobs:
           done
           test "$codigo" = "200" || { echo "✖ La web no responde (HTTP $codigo)"; exit 1; }
           n=$(grep -o '"id":"p-' /tmp/web.html | wc -l | tr -d ' ')
-          esperadas=$(node -e 'console.log(require("./contenido/preguntas.json").preguntas.length)')
-          echo "Preguntas servidas: $n de $esperadas"
-          test "$n" = "$esperadas" || { echo "✖ La web no sirve todas las preguntas"; exit 1; }
-          echo "✔ La web responde y sirve el contenido correcto."
+          test "$n" = "$esperadas" || { echo "✖ La web sirve $n preguntas, el artefacto validado contiene $esperadas"; exit 1; }
+          echo "✔ Cloudflare responde y sirve las $n preguntas validadas."
 
-  # Segundo destino. Cloudflare y GitHub sirven desde redes distintas: si un
-  # operador no enruta hacia una de ellas, la otra sigue accesible.
   publicar-en-github:
-    name: Publicar también en GitHub Pages
-    needs: desplegar
+    name: Publicar en GitHub Pages
+    needs: compilar
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -122,6 +180,12 @@ jobs:
       name: github-pages
       url: ${{ steps.despliegue.outputs.page_url }}
     steps:
+      - name: Recuperar una referencia del artefacto validado
+        uses: actions/download-artifact@v5
+        with:
+          name: web-build
+          path: dist/web
+
       - name: Publicar
         id: despliegue
         uses: actions/deploy-pages@v4
@@ -129,8 +193,9 @@ jobs:
       - name: Comprobar que responde
         run: |
           set -e
+          esperadas=$(grep -o '"id":"p-' dist/web/index.html | wc -l | tr -d ' ')
+          test "$esperadas" -gt 0 || { echo "✖ El artefacto validado no contiene preguntas"; exit 1; }
           url="${{ steps.despliegue.outputs.page_url }}"
-          echo "URL: $url"
           for i in 1 2 3 4 5 6; do
             codigo=$(curl -sSL -m 25 -o /tmp/gh.html -w '%{http_code}' "$url" || echo 000)
             [ "$codigo" = "200" ] && break
@@ -138,6 +203,5 @@ jobs:
           done
           test "$codigo" = "200" || { echo "✖ No responde (HTTP $codigo)"; exit 1; }
           n=$(grep -o '"id":"p-' /tmp/gh.html | wc -l | tr -d ' ')
-          echo "Preguntas servidas: $n"
-          test "$n" -gt 0 || { echo "✖ No sirve el contenido"; exit 1; }
-          echo "✔ GitHub Pages responde correctamente."
+          test "$n" = "$esperadas" || { echo "✖ GitHub sirve $n preguntas, el artefacto validado contiene $esperadas"; exit 1; }
+          echo "✔ GitHub Pages responde y sirve las $n preguntas validadas."

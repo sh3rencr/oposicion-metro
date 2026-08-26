@@ -7,6 +7,7 @@
 
 var TEMARIO   = DATOS.temario;
 var PREGUNTAS = DATOS.preguntas.preguntas;
+var LEGACY_FICHAS = DATOS.legacy_fichas || {};
 var EXAMEN    = TEMARIO.examen;
 var PARTES    = TEMARIO.partes;
 
@@ -22,9 +23,14 @@ PARTES.forEach(function (pa) {
   });
 });
 var PREG_POR_ID = {};
-PREGUNTAS.forEach(function (p) { PREG_POR_ID[p.id] = p; });
+var ID_ANTIGUO_A_NUEVO = {};
+PREGUNTAS.forEach(function (p) {
+  PREG_POR_ID[p.id] = p;
+  if (p.legacy_id) ID_ANTIGUO_A_NUEVO[p.legacy_id] = p.id;
+});
 
 var NUEVAS_POR_DIA = 20;
+var MAX_REPASO_POR_BLOQUE = 40;
 var INTERVALOS = [1, 3, 7, 16, 35, 75, 150];
 
 /* ===================== utilidades ===================== */
@@ -80,8 +86,28 @@ function mmss(seg) {
   return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
 }
 function plural(n, sing, pl) { return n + ' ' + (n === 1 ? sing : pl); }
+function barraProgreso(pct, etiqueta, estilo, color) {
+  var valor = Math.max(0, Math.min(100, Number(pct) || 0));
+  return el('div', {
+    class: 'barra', style: estilo || '', role: 'progressbar',
+    'aria-label': etiqueta || 'Progreso', 'aria-valuemin': '0',
+    'aria-valuemax': '100', 'aria-valuenow': String(Math.round(valor))
+  }, [el('i', { style: 'width:' + valor + '%' + (color ? ';background:' + color : '') })]);
+}
 function normaliza(s) {
   return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+function hashTexto(s) {
+  var h = 2166136261;
+  s = String(s);
+  for (var i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ('00000000' + (h >>> 0).toString(16)).slice(-8);
+}
+function claveFicha(ep, ficha) {
+  return ep.id + '#f-' + (ficha.id || hashTexto(ep.id + '\n' + ficha.anverso));
 }
 
 /* ===================== identidad visual ===================== */
@@ -122,43 +148,226 @@ function saludo() {
   return n ? momento + ', ' + n : momento;
 }
 function colorParte(pa) { return (pa && pa.color) ? pa.color : 'var(--accent)'; }
+function tintaParte(pa) {
+  return pa && ['3', '4', '6'].indexOf(String(pa.parte)) >= 0 ? '#000000' : '#ffffff';
+}
 /* Tiñe la banda superior y los acentos con el color de la parte que se está viendo. */
 function ponerLinea(color) {
   document.documentElement.style.setProperty('--linea', color || 'var(--accent)');
 }
 function roundel(pa, pequeno) {
   return el('span', { class: 'roundel' + (pequeno ? ' pequeno' : ''),
-                      style: 'background:' + colorParte(pa), text: pa.parte });
+                      style: 'background:' + colorParte(pa) + ';color:' + tintaParte(pa), text: pa.parte });
 }
 /* Devuelve ', Andrei' o cadena vacía, para poder tutear sin quedar forzado. */
 function coma() { var n = nombreUsuario(); return n ? ', ' + n : ''; }
 
 /* ===================== estado persistente ===================== */
 var CLAVE = 'oposicion-metro-v1';
+var CLAVE_BLOQUEO = CLAVE + '-pestana-activa';
+var CLAVE_ANTES_RESTAURAR = CLAVE + '-antes-restaurar';
+var VERSION_ESTADO = 2;
 var E;
+var soloLectura = false;
+var avisoSoloLecturaMostrado = false;
+var ID_PESTANA = (window.crypto && window.crypto.randomUUID)
+  ? window.crypto.randomUUID()
+  : String(Date.now()) + '-' + String(Math.random()).slice(2);
+var fichasValidas = {};
+var fichaAntiguaANueva = {};
+EPIGRAFES.forEach(function (ep) {
+  (ep.fichas || []).forEach(function (f) {
+    var nueva = claveFicha(ep, f);
+    fichasValidas[nueva] = true;
+    if (LEGACY_FICHAS[nueva]) fichaAntiguaANueva[LEGACY_FICHAS[nueva]] = nueva;
+  });
+});
 
 function estadoInicial() {
-  return { v: 1, srs: {}, fichas: {}, simulacros: [], fallos: [],
+  return { v: VERSION_ESTADO, srs: {}, practica: {}, fichas: {}, simulacros: [], fallos: [],
            racha: { ultimo: null, dias: 0, mejor: 0 }, vistos: {},
-           nuevasHoy: { fecha: null, n: 0 }, tema: 'auto' };
+           nuevasHoy: { fecha: null, n: 0 }, tema: 'auto', psico: {}, revision: 0 };
+}
+function esObjetoPlano(v) {
+  if (!v || Object.prototype.toString.call(v) !== '[object Object]') return false;
+  var proto = Object.getPrototypeOf(v);
+  return proto === Object.prototype || proto === null;
+}
+function enteroAcotado(v, min, max, defecto) {
+  return Number.isInteger(v) && v >= min && v <= max ? v : defecto;
+}
+function fechaValida(v) {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  var p = v.split('-').map(Number), d = new Date(p[0], p[1] - 1, p[2]);
+  return d.getFullYear() === p[0] && d.getMonth() === p[1] - 1 && d.getDate() === p[2];
+}
+function idPreguntaActual(id) {
+  return PREG_POR_ID[id] ? id : (ID_ANTIGUO_A_NUEVO[id] || null);
+}
+function claveFichaActual(id) {
+  return fichasValidas[id] ? id : (fichaAntiguaANueva[id] || null);
+}
+function normalizarEstado(origen, estricto) {
+  if (!esObjetoPlano(origen)) {
+    if (estricto) throw new Error('El estado no es un objeto.');
+    origen = {};
+  }
+  if (estricto && 'v' in origen &&
+      (!Number.isInteger(origen.v) || origen.v < 1 || origen.v > VERSION_ESTADO)) {
+    throw new Error('La versión del estado no es compatible.');
+  }
+  if (estricto && !esObjetoPlano(origen.srs)) throw new Error('El campo srs no es un objeto.');
+  if (estricto) ['practica', 'fichas', 'racha', 'vistos', 'nuevasHoy', 'psico'].forEach(function (campo) {
+    if (campo in origen && !esObjetoPlano(origen[campo])) throw new Error('El campo ' + campo + ' no es un objeto.');
+  });
+  var n = estadoInicial();
+
+  if (esObjetoPlano(origen.srs)) Object.keys(origen.srs).forEach(function (id) {
+    var actual = idPreguntaActual(id), t = origen.srs[id];
+    if (!actual || !esObjetoPlano(t)) return;
+    n.srs[actual] = {
+      n: enteroAcotado(t.n, 0, INTERVALOS.length, 0),
+      due: fechaValida(t.due) ? t.due : hoyStr(),
+      fallos: enteroAcotado(t.fallos, 0, 100000, 0),
+      vistas: enteroAcotado(t.vistas, 0, 1000000, 0),
+      lastReviewed: fechaValida(t.lastReviewed) ? t.lastReviewed : null
+    };
+  });
+  if (esObjetoPlano(origen.practica)) Object.keys(origen.practica).forEach(function (id) {
+    var actual = idPreguntaActual(id), t = origen.practica[id];
+    if (!actual || !esObjetoPlano(t)) return;
+    var intentos = enteroAcotado(t.intentos, 0, 1000000, 0);
+    n.practica[actual] = {
+      intentos: intentos,
+      aciertos: enteroAcotado(t.aciertos, 0, intentos, 0),
+      ultimo: fechaValida(t.ultimo) ? t.ultimo : null
+    };
+  });
+  if (!esObjetoPlano(origen.practica)) Object.keys(n.srs).forEach(function (id) {
+    n.practica[id] = { intentos: Math.max(1, n.srs[id].vistas), aciertos: 0, ultimo: n.srs[id].lastReviewed };
+  });
+  if (esObjetoPlano(origen.fichas)) Object.keys(origen.fichas).forEach(function (id) {
+    var actual = claveFichaActual(id), t = origen.fichas[id];
+    if (!actual || !esObjetoPlano(t)) return;
+    n.fichas[actual] = {
+      n: enteroAcotado(t.n, 0, INTERVALOS.length, 0),
+      due: fechaValida(t.due) ? t.due : hoyStr(),
+      lastReviewed: fechaValida(t.lastReviewed) ? t.lastReviewed : null
+    };
+  });
+  if (Array.isArray(origen.simulacros)) {
+    n.simulacros = origen.simulacros.slice(-100).filter(esObjetoPlano).map(function (s) {
+      var total = enteroAcotado(s.total, 1, 10000, 1);
+      var aciertos = enteroAcotado(s.aciertos, 0, total, 0);
+      var porParte = {};
+      if (esObjetoPlano(s.porParte)) Object.keys(s.porParte).forEach(function (clave) {
+        if (!/^(?:[1-7]|\?)$/.test(clave)) return;
+        var g = s.porParte[clave];
+        if (!esObjetoPlano(g)) return;
+        var gt = enteroAcotado(g.total, 1, 10000, 1);
+        porParte[clave] = { total: gt, ac: enteroAcotado(g.ac, 0, gt, 0) };
+      });
+      return {
+        fecha: fechaValida(s.fecha) ? s.fecha : hoyStr(),
+        aciertos: aciertos, total: total,
+        nota: Math.round((aciertos / total) * 1000) / 10,
+        segundos: enteroAcotado(s.segundos, 0, 864000, 0),
+        porParte: porParte
+      };
+    });
+  } else if (estricto && 'simulacros' in origen) throw new Error('El historial de simulacros no es válido.');
+  if (Array.isArray(origen.fallos)) {
+    origen.fallos.forEach(function (id) {
+      var actual = idPreguntaActual(id);
+      if (actual && n.fallos.indexOf(actual) < 0) n.fallos.push(actual);
+    });
+  } else if (estricto && 'fallos' in origen) throw new Error('La lista de fallos no es válida.');
+  if (esObjetoPlano(origen.racha)) {
+    var diasRacha = enteroAcotado(origen.racha.dias, 0, 100000, 0);
+    n.racha = {
+      ultimo: fechaValida(origen.racha.ultimo) ? origen.racha.ultimo : null,
+      dias: diasRacha,
+      mejor: Math.max(diasRacha, enteroAcotado(origen.racha.mejor, 0, 100000, 0))
+    };
+  }
+  if (esObjetoPlano(origen.vistos)) Object.keys(origen.vistos).forEach(function (id) {
+    if (EP_POR_ID[id] && origen.vistos[id]) n.vistos[id] = true;
+  });
+  if (esObjetoPlano(origen.nuevasHoy)) {
+    n.nuevasHoy = {
+      fecha: fechaValida(origen.nuevasHoy.fecha) ? origen.nuevasHoy.fecha : null,
+      n: enteroAcotado(origen.nuevasHoy.n, 0, NUEVAS_POR_DIA, 0)
+    };
+  }
+  n.tema = ['auto', 'claro', 'oscuro'].indexOf(origen.tema) >= 0 ? origen.tema : 'auto';
+  if (esObjetoPlano(origen.psico)) ['serie', 'verbal', 'espacial', 'mixto'].forEach(function (tipo) {
+    var t = origen.psico[tipo];
+    if (!esObjetoPlano(t)) return;
+    var hechos = enteroAcotado(t.hechos, 0, 1000000, 0);
+    n.psico[tipo] = {
+      hechos: hechos,
+      aciertos: enteroAcotado(t.aciertos, 0, hechos, 0)
+    };
+  });
+  n.revision = enteroAcotado(origen.revision, 0, Number.MAX_SAFE_INTEGER, 0);
+  return n;
 }
 function cargar() {
   try {
     var crudo = localStorage.getItem(CLAVE);
-    E = crudo ? JSON.parse(crudo) : estadoInicial();
+    E = crudo ? normalizarEstado(JSON.parse(crudo), false) : estadoInicial();
   } catch (err) { E = estadoInicial(); }
-  var base = estadoInicial();
-  for (var k in base) if (!(k in E)) E[k] = base[k];
 }
 var guardarPendiente = null;
 function guardarYa() {
   if (guardarPendiente) { clearTimeout(guardarPendiente); guardarPendiente = null; }
-  try { localStorage.setItem(CLAVE, JSON.stringify(E)); }
-  catch (err) { console.warn('No se pudo guardar el progreso', err); }
+  if (soloLectura) return false;
+  try {
+    var serializado = JSON.stringify(E);
+    localStorage.setItem(CLAVE, serializado);
+    return localStorage.getItem(CLAVE) === serializado;
+  } catch (err) { console.warn('No se pudo guardar el progreso', err); return false; }
 }
 function guardar() {
+  if (soloLectura) return;
   if (guardarPendiente) clearTimeout(guardarPendiente);
   guardarPendiente = setTimeout(guardarYa, 120);
+}
+function puedeEditar() {
+  if (!soloLectura) return true;
+  if (!avisoSoloLecturaMostrado) {
+    avisoSoloLecturaMostrado = true;
+    alert('Esta aplicación ya está abierta en otra pestaña. Cierra la otra pestaña y pulsa «Comprobar de nuevo» para evitar perder progreso.');
+  }
+  return false;
+}
+function leerBloqueo() {
+  try { return JSON.parse(localStorage.getItem(CLAVE_BLOQUEO) || 'null'); }
+  catch (err) { return null; }
+}
+function escribirBloqueo() {
+  try { localStorage.setItem(CLAVE_BLOQUEO, JSON.stringify({ id: ID_PESTANA, ts: Date.now() })); return true; }
+  catch (err) { return false; }
+}
+function comprobarBloqueo() {
+  var b = leerBloqueo();
+  var ocupado = b && b.id !== ID_PESTANA && Date.now() - b.ts < 15000;
+  var anterior = soloLectura;
+  soloLectura = !!ocupado;
+  if (!soloLectura) escribirBloqueo();
+  if (anterior !== soloLectura && pila && pila.length) pintar();
+  return !soloLectura;
+}
+function avisoPestana(c) {
+  if (!soloLectura) return;
+  c.appendChild(el('div', { class: 'aviso aviso-pestana', role: 'alert' }, [
+    el('b', { text: 'Modo de solo lectura. ' }),
+    document.createTextNode('La aplicación está abierta en otra pestaña. Cierra la otra para evitar que dos copias sobrescriban el progreso.'),
+    el('button', { class: 'btn', style: 'margin-top:10px', onclick: function () {
+      avisoSoloLecturaMostrado = false;
+      comprobarBloqueo();
+    } }, ['Comprobar de nuevo'])
+  ]));
 }
 // Si cierra la pestaña o cambia de aplicación, volcamos ya: nada de esperar al retardo.
 window.addEventListener('pagehide', guardarYa);
@@ -166,29 +375,59 @@ window.addEventListener('beforeunload', guardarYa);
 document.addEventListener('visibilitychange', function () {
   if (document.visibilityState === 'hidden') guardarYa();
 });
+window.addEventListener('pagehide', function () {
+  var b = leerBloqueo();
+  if (b && b.id === ID_PESTANA) try { localStorage.removeItem(CLAVE_BLOQUEO); } catch (err) {}
+});
+window.addEventListener('storage', function (ev) {
+  if (ev.key === CLAVE_BLOQUEO) comprobarBloqueo();
+  if (ev.key === CLAVE && soloLectura && ev.newValue) {
+    try { E = normalizarEstado(JSON.parse(ev.newValue), false); if (pila.length) pintar(); } catch (err) {}
+  }
+});
+setInterval(function () { if (!document.hidden) comprobarBloqueo(); }, 5000);
 
 /* ===================== repetición espaciada ===================== */
 function tarjeta(id) {
   if (!E.srs[id]) E.srs[id] = { n: 0, due: hoyStr(), fallos: 0, vistas: 0 };
   return E.srs[id];
 }
-function registrar(id, acerto) {
-  if (!E.srs[id]) contadorNuevas().n++;   // la cuota diaria se gasta al responder, no al abrir
-  var t = tarjeta(id);
-  t.vistas++;
-  if (acerto) {
-    t.n = t.n + 1;
-    t.due = sumarDias(hoyStr(), INTERVALOS[Math.min(t.n - 1, INTERVALOS.length - 1)]);
-    var i = E.fallos.indexOf(id);
-    if (i >= 0 && t.n >= 2) E.fallos.splice(i, 1);
-  } else {
-    t.n = 0;
-    t.fallos++;
-    t.due = sumarDias(hoyStr(), 1);
-    if (E.fallos.indexOf(id) < 0) E.fallos.push(id);
+function registrar(id, acerto, modo, revisable) {
+  if (!puedeEditar()) return false;
+  var h = hoyStr();
+  var practica = E.practica[id] || { intentos: 0, aciertos: 0, ultimo: null };
+  practica.intentos++;
+  if (acerto) practica.aciertos++;
+  practica.ultimo = h;
+  E.practica[id] = practica;
+
+  if (!acerto && E.fallos.indexOf(id) < 0) E.fallos.push(id);
+
+  // Solo un repaso programado puede mover el calendario SRS. Un test o un
+  // simulacro mide práctica, pero no finge que han transcurrido días.
+  if (modo === 'repaso' && revisable) {
+    var eraNueva = !E.srs[id];
+    var t = tarjeta(id);
+    t.vistas++;
+    if (t.lastReviewed !== h) {
+      if (eraNueva) contadorNuevas().n++;
+      if (acerto) {
+        t.n = Math.min(INTERVALOS.length, t.n + 1);
+        t.due = sumarDias(h, INTERVALOS[Math.min(t.n - 1, INTERVALOS.length - 1)]);
+        var i = E.fallos.indexOf(id);
+        if (i >= 0 && t.n >= 2) E.fallos.splice(i, 1);
+      } else {
+        t.n = 0;
+        t.fallos++;
+        t.due = sumarDias(h, 1);
+      }
+      t.lastReviewed = h;
+    }
   }
   tocarRacha();
+  E.revision++;
   guardar();
+  return true;
 }
 function tocarRacha() {
   var h = hoyStr(), r = E.racha;
@@ -202,7 +441,7 @@ function contadorNuevas() {
   if (E.nuevasHoy.fecha !== h) E.nuevasHoy = { fecha: h, n: 0 };
   return E.nuevasHoy;
 }
-function colaDeHoy() {
+function datosColaDeHoy() {
   var h = hoyStr(), vencidas = [], nuevas = [];
   PREGUNTAS.forEach(function (p) {
     var t = E.srs[p.id];
@@ -215,8 +454,16 @@ function colaDeHoy() {
     return tb.fallos - ta.fallos;                     // y lo más fallado antes
   });
   var cupo = Math.max(0, NUEVAS_POR_DIA - contadorNuevas().n);
-  return vencidas.concat(baraja(nuevas).slice(0, cupo));
+  var nuevasHoy = baraja(nuevas).slice(0, cupo);
+  var pendientes = vencidas.concat(nuevasHoy);
+  return {
+    lista: pendientes.slice(0, MAX_REPASO_POR_BLOQUE),
+    total: pendientes.length,
+    vencidas: vencidas.length,
+    nuevas: nuevasHoy.length
+  };
 }
+function colaDeHoy() { return datosColaDeHoy().lista; }
 
 /* ===================== markdown mínimo ===================== */
 function md(txt) {
@@ -230,7 +477,7 @@ function md(txt) {
         return '<li>' + enLinea(l.trim().replace(/^[-*]\s+/, '')) + '</li>';
       }).join('') + '</ul>';
     }
-    if (/^#{1,4}\s+/.test(b)) return '<h4>' + enLinea(b.replace(/^#{1,4}\s+/, '')) + '</h4>';
+    if (/^#{1,4}\s+/.test(b)) return '<h2>' + enLinea(b.replace(/^#{1,4}\s+/, '')) + '</h2>';
     if (lineas.length > 1 && lineas.every(function (l) { return /^\|/.test(l.trim()); })) return tabla(lineas);
     if (lineas.every(function (l) { return /^>\s?/.test(l.trim()); })) {
       return '<p class="nota-md">' + enLinea(lineas.map(function (l) { return l.replace(/^>\s?/, ''); }).join(' ')) + '</p>';
@@ -418,10 +665,27 @@ function reemplazar(fn, titulo, args) {
   pila[pila.length - 1] = { fn: fn, titulo: titulo, args: args };
   pintar();
 }
-function atras() {
-  if (pila.length > 1) { pila.pop(); pintar(); }
+function esSesionActiva(v) {
+  return v && (v.fn === pSesion || v.fn === pPsicoSesion) && v.args &&
+    v.args.sesion && !v.args.sesion.terminada;
 }
-function alInicio() { pila = [pila[0]]; pintar(); }
+function confirmarAbandono(v) {
+  if (!esSesionActiva(v)) return true;
+  var nombre = v.fn === pPsicoSesion ? 'la tanda de psicotécnicos' :
+    (v.args.sesion.modo === 'simulacro' ? 'el simulacro' : 'el test');
+  return confirm('¿Seguro que quieres abandonar ' + nombre + '? Se perderán las respuestas de esta sesión.');
+}
+function atras(forzar) {
+  if (pila.length <= 1) return;
+  var actual = pila[pila.length - 1];
+  if (!forzar && !confirmarAbandono(actual)) return;
+  pila.pop(); pintar();
+}
+function alInicio(forzar) {
+  var actual = pila[pila.length - 1];
+  if (!forzar && !confirmarAbandono(actual)) return;
+  pila = [pila[0]]; pintar();
+}
 function pintar() {
   var v = pila[pila.length - 1];
   teclado = null;
@@ -430,6 +694,8 @@ function pintar() {
   app.innerHTML = '';
   $('#titulo-pantalla').textContent = v.titulo;
   $('#btn-atras').classList.toggle('oculto', pila.length <= 1);
+  $('#btn-buscar').classList.toggle('oculto', esSesionActiva(v));
+  avisoPestana(app);
   v.fn(app, v.args || {});
   window.scrollTo(0, 0);
   app.focus({ preventScroll: true });
@@ -449,10 +715,22 @@ function pieOculto() {
 /* ===================== teclado ===================== */
 var teclado = null;
 document.addEventListener('keydown', function (ev) {
-  if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+  var activo = ev.target && ev.target.nodeType === 1 ? ev.target : document.activeElement;
   if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  var editable = activo && activo.closest ? activo.closest('input,textarea,select,[contenteditable="true"]') : null;
+  if (ev.key === 'Escape' && !editable && pila.length > 1) {
+    atras(); ev.preventDefault(); return;
+  }
+  var interactivo = activo && activo.closest ? activo.closest('input,textarea,select,button,a,summary,[contenteditable="true"]') : null;
+  if (interactivo) {
+    // Garantiza la activación en navegadores/teclados que no sintetizan el clic
+    // nativo y evita que el atajo global de «seguir» secuestre la tecla.
+    if (interactivo.tagName === 'BUTTON' && (ev.key === 'Enter' || ev.key === ' ')) {
+      ev.preventDefault(); interactivo.click();
+    }
+    return;
+  }
   var k = ev.key;
-  if (k === 'Escape' && pila.length > 1) { atras(); ev.preventDefault(); return; }
   if (!teclado) return;
   if (k >= '1' && k <= '9' && teclado.opcion) {
     if (teclado.opcion(parseInt(k, 10) - 1) !== false) ev.preventDefault();
@@ -463,7 +741,8 @@ document.addEventListener('keydown', function (ev) {
 
 /* ===================== pantalla: inicio ===================== */
 function pInicio(c) {
-  var cola = colaDeHoy();
+  var datosCola = datosColaDeHoy();
+  var cola = datosCola.lista;
   var r = E.racha;
 
   var hero = el('div', { class: 'hero' });
@@ -475,7 +754,8 @@ function pInicio(c) {
   if (cola.length) {
     hero.appendChild(el('div', { class: 'cifra' }, [
       el('b', { text: String(cola.length) }),
-      el('span', { text: cola.length === 1 ? 'pregunta para hoy' : 'preguntas para hoy' })
+      el('span', { text: (cola.length === 1 ? 'pregunta en este bloque' : 'preguntas en este bloque') +
+        (datosCola.total > cola.length ? ' · ' + datosCola.total + ' pendientes en total' : '') })
     ]));
   } else {
     hero.appendChild(el('div', { class: 'cifra' }, [el('b', { text: '✓' }), el('span', { text: 'hoy ya está el repaso al día' })]));
@@ -541,8 +821,7 @@ function pPartes(c) {
         el('b', { text: pa.titulo }),
         el('small', { text: plural(pa.epigrafes.length, 'tema', 'temas') + ' · ' + plural(nPreg, 'pregunta', 'preguntas') +
                             (d.total ? ' · ' + d.pct + '% dominado' : '') }),
-        d.total ? el('div', { class: 'barra', style: 'margin-top:8px;height:6px' },
-          [el('i', { style: 'width:' + d.pct + '%;background:' + colorParte(pa) })]) : null
+        d.total ? barraProgreso(d.pct, 'Dominio de la parte ' + pa.parte, 'margin-top:8px;height:6px', colorParte(pa)) : null
       ]),
       el('span', { class: 'flecha', text: '›' })
     ]));
@@ -588,7 +867,7 @@ function pEpigrafes(c, a) {
   var preg = PREGUNTAS.filter(function (q) { return ids.indexOf(q.epigrafe) >= 0; });
   if (preg.length) {
     c.appendChild(el('button', { class: 'btn primario',
-      style: 'margin-top:18px;background:' + colorParte(pa) + ';color:#fff',
+      style: 'margin-top:18px;background:' + colorParte(pa) + ';color:' + tintaParte(pa),
       onclick: function () { lanzarTest(baraja(preg), 'Parte ' + pa.parte); } },
       ['Test de toda la parte ' + pa.parte]));
   }
@@ -596,7 +875,7 @@ function pEpigrafes(c, a) {
 
 function pTema(c, a) {
   var ep = a.ep;
-  E.vistos[ep.id] = true; tocarRacha(); guardar();
+  if (!soloLectura) { E.vistos[ep.id] = true; tocarRacha(); E.revision++; guardar(); }
 
   var paTema = PARTE_DE_EP[ep.id];
   ponerLinea(colorParte(paTema));
@@ -608,6 +887,10 @@ function pTema(c, a) {
   }
   c.appendChild(el('h2', { text: ep.titulo }));
   c.appendChild(el('div', { class: 'card rail' }, [el('div', { class: 'md', html: md(ep.resumen_md) })]));
+  if (ep.nota_normativa) c.appendChild(el('div', { class: 'aviso', role: 'note' }, [
+    el('b', { text: 'Manual y norma vigente no usan el mismo límite. ' }),
+    document.createTextNode(ep.nota_normativa)
+  ]));
 
   (ep.figuras || []).forEach(function (nombre) {
     if (!FIGURAS[nombre]) return;
@@ -640,24 +923,48 @@ function lanzarTest(preguntas, etiqueta) {
   });
 }
 
+function preguntaParaSesion(p) {
+  var opciones = baraja(p.opciones.map(function (texto, idx) {
+    return { texto: texto, correcta: idx === p.correcta };
+  }));
+  var copia = {};
+  Object.keys(p).forEach(function (k) { copia[k] = p[k]; });
+  copia.opciones = opciones.map(function (o) { return o.texto; });
+  copia.correcta = opciones.findIndex(function (o) { return o.correcta; });
+  return copia;
+}
+function crearSesionPreguntas(cfg) {
+  var h = hoyStr(), revisables = {};
+  if (cfg.modo === 'repaso') cfg.preguntas.forEach(function (p) {
+    var t = E.srs[p.id];
+    revisables[p.id] = !t || t.due <= h;
+  });
+  return {
+    lista: cfg.preguntas.map(preguntaParaSesion), i: 0,
+    respuestas: new Array(cfg.preguntas.length).fill(null), reintentos: [],
+    inicio: Date.now(), deadline: cfg.minutos ? Date.now() + cfg.minutos * 60000 : null,
+    modo: cfg.modo, revisables: revisables, terminada: false
+  };
+}
+
 function pSesion(c, cfg) {
-  var lista = cfg.preguntas.slice();
-  var i = 0;
-  var respuestas = new Array(lista.length).fill(null);
-  var reintentos = [];
-  var inicio = Date.now();
-  var limite = cfg.minutos ? cfg.minutos * 60 : null;
+  var s = cfg.sesion || crearSesionPreguntas(cfg);
+  cfg.sesion = s;
+  var lista = s.lista;
   var tempo = null;
 
   var cabecera = el('div', { class: 'contador' });
-  var barra = el('div', { class: 'barra' }, [el('i')]);
+  var barra = barraProgreso(0, 'Progreso de la sesión');
+  var mapa = cfg.inmediato ? null : el('details', { class: 'mapa-preguntas' });
   var zona = el('div');
-  c.appendChild(cabecera); c.appendChild(barra); c.appendChild(zona);
+  c.appendChild(cabecera); c.appendChild(barra);
+  if (mapa) c.appendChild(mapa);
+  c.appendChild(zona);
 
-  if (limite) {
+  if (s.deadline) {
     tempo = setInterval(function () {
       if (!document.body.contains(zona)) { clearInterval(tempo); return; }
-      var queda = limite - Math.floor((Date.now() - inicio) / 1000);
+      var queda = Math.ceil((s.deadline - Date.now()) / 1000);
       var cr = $('#crono');
       if (cr) {
         cr.textContent = '⏱ ' + mmss(Math.max(0, queda));
@@ -667,17 +974,37 @@ function pSesion(c, cfg) {
     }, 1000);
   }
 
-  function actual() { return lista[i]; }
+  function actual() { return lista[s.i]; }
+
+  function actualizarMapa() {
+    if (!mapa) return;
+    mapa.innerHTML = '';
+    var respondidas = s.respuestas.filter(function (r) { return r !== null; }).length;
+    mapa.appendChild(el('summary', { text: respondidas + ' de ' + lista.length + ' respondidas · ir a una pregunta' }));
+    var rejilla = el('div', { class: 'rejilla-preguntas' });
+    lista.forEach(function (p, idx) {
+      rejilla.appendChild(el('button', {
+        class: 'salto-pregunta' + (s.respuestas[idx] !== null ? ' respondida' : '') + (idx === s.i ? ' actual' : ''),
+        'aria-label': 'Pregunta ' + (idx + 1) + (s.respuestas[idx] !== null ? ', respondida' : ', sin responder'),
+        'aria-current': idx === s.i ? 'step' : null,
+        onclick: function () { s.i = idx; dibujar(); }
+      }, [String(idx + 1)]));
+    });
+    mapa.appendChild(rejilla);
+  }
 
   function dibujar() {
     var p = actual();
     zona.innerHTML = '';
     cabecera.innerHTML = '';
-    cabecera.appendChild(el('span', { text: 'Pregunta ' + (i + 1) + ' de ' + lista.length }));
-    cabecera.appendChild(limite
-      ? el('span', { class: 'crono', id: 'crono', text: '⏱ ' + mmss(limite - Math.floor((Date.now() - inicio) / 1000)) })
+    cabecera.appendChild(el('span', { text: 'Pregunta ' + (s.i + 1) + ' de ' + lista.length }));
+    cabecera.appendChild(s.deadline
+      ? el('span', { class: 'crono', id: 'crono', text: '⏱ ' + mmss(Math.max(0, Math.ceil((s.deadline - Date.now()) / 1000))) })
       : el('span', { text: cfg.etiqueta || '' }));
-    $('i', barra).style.width = ((i / lista.length) * 100).toFixed(1) + '%';
+    var pct = (s.i / lista.length) * 100;
+    $('i', barra).style.width = pct.toFixed(1) + '%';
+    barra.setAttribute('aria-valuenow', String(Math.round(pct)));
+    actualizarMapa();
 
     var tarjetaP = el('div', { class: 'card' });
     if (p.volatil) {
@@ -693,66 +1020,92 @@ function pSesion(c, cfg) {
         el('span', { class: 'tecla', text: String(idx + 1) }),
         el('span', { text: texto })
       ]);
-      if (respuestas[i] === idx) b.classList.add('marcada');
+      if (s.respuestas[s.i] === idx) b.classList.add('marcada');
       botones.push(b); ops.appendChild(b);
     });
     tarjetaP.appendChild(ops);
     zona.appendChild(tarjetaP);
 
     teclado = { opcion: function (n) { if (n < p.opciones.length) { elegir(n); return true; } return false; },
-                seguir: function () { if (!cfg.inmediato && respuestas[i] !== null) { avanzar(); return true; } return false; } };
+                seguir: function () { if (!cfg.inmediato && s.respuestas[s.i] !== null) { avanzar(); return true; } return false; } };
 
     if (!cfg.inmediato) {
       var nav = el('div', { class: 'fila', style: 'margin-top:6px' });
-      if (i > 0) nav.appendChild(el('button', { class: 'btn sutil', onclick: function () { i--; dibujar(); } }, ['← Anterior']));
-      nav.appendChild(el('button', { class: 'btn' + (respuestas[i] !== null ? ' primario' : ''), onclick: avanzar },
-        [i === lista.length - 1 ? 'Terminar y corregir' : 'Siguiente →']));
+      if (s.i > 0) nav.appendChild(el('button', { class: 'btn sutil', onclick: function () { s.i--; dibujar(); } }, ['← Anterior']));
+      nav.appendChild(el('button', { class: 'btn' + (s.respuestas[s.i] !== null ? ' primario' : ''), onclick: avanzar },
+        [s.i === lista.length - 1 ? 'Terminar y corregir' : 'Siguiente →']));
       zona.appendChild(nav);
       pie([el('button', { class: 'btn sutil', onclick: confirmarSalida }, ['Abandonar el simulacro'])]);
+    } else if (s.respuestas[s.i] !== null) {
+      mostrarCorreccion(false);
     }
 
     function elegir(idx) {
+      if (!puedeEditar()) return;
       if (cfg.inmediato) {
-        if (respuestas[i] !== null) return;
-        respuestas[i] = idx;
+        if (s.respuestas[s.i] !== null) return;
+        s.respuestas[s.i] = idx;
         var acerto = idx === p.correcta;
-        registrar(p.id, acerto);
-        if (!acerto && reintentos.indexOf(p.id) < 0) reintentos.push(p.id);
-        botones.forEach(function (b, k) {
-          b.disabled = true;
-          b.classList.remove('marcada');
-          if (k === p.correcta) b.classList.add('correcta');
-          else if (k === idx) b.classList.add('fallada');
-        });
-        botones[idx].classList.add(acerto ? 'anim-ok' : 'anim-err');
-        tarjetaP.appendChild(bloqueExplicacion(p, acerto));
-        var seguir = el('button', { class: 'btn primario', style: 'margin-top:16px', onclick: avanzar },
-          [i === lista.length - 1 ? 'Ver el resultado' : 'Siguiente pregunta']);
-        zona.appendChild(seguir);
-        seguir.focus({ preventScroll: true });
-        teclado = { seguir: function () { avanzar(); return true; } };
+        if (!registrar(p.id, acerto, cfg.modo, !!s.revisables[p.id])) {
+          s.respuestas[s.i] = null;
+          return;
+        }
+        if (!acerto && s.reintentos.indexOf(p.id) < 0) s.reintentos.push(p.id);
+        mostrarCorreccion(true);
       } else {
-        respuestas[i] = idx;
-        botones.forEach(function (b, k) { b.classList.toggle('marcada', k === idx); });
+        s.respuestas[s.i] = idx;
+        dibujar();
       }
+    }
+
+    function mostrarCorreccion(enfocar) {
+      var idx = s.respuestas[s.i];
+      var acerto = idx === p.correcta;
+      botones.forEach(function (b, k) {
+        b.disabled = true;
+        b.classList.remove('marcada');
+        if (k === p.correcta) b.classList.add('correcta');
+        else if (k === idx) b.classList.add('fallada');
+      });
+      if (enfocar) botones[idx].classList.add(acerto ? 'anim-ok' : 'anim-err');
+      var feedback = bloqueExplicacion(p, acerto);
+      tarjetaP.appendChild(feedback);
+      zona.appendChild(el('button', { class: 'btn primario', style: 'margin-top:16px', onclick: avanzar },
+        [s.i === lista.length - 1 ? 'Ver el resultado' : 'Siguiente pregunta']));
+      if (enfocar) feedback.focus({ preventScroll: true });
+      teclado = { seguir: function () { avanzar(); return true; } };
     }
   }
 
   function avanzar() {
-    if (i < lista.length - 1) { i++; dibujar(); }
-    else terminar(false);
+    if (s.i < lista.length - 1) { s.i++; dibujar(); }
+    else intentarTerminar();
+  }
+  function intentarTerminar() {
+    var sinResponder = s.respuestas.filter(function (r) { return r === null; }).length;
+    if (sinResponder && !cfg.inmediato &&
+        !confirm('Quedan ' + sinResponder + ' preguntas sin responder. ¿Quieres corregir ya?')) return;
+    terminar(false);
   }
   function confirmarSalida() {
-    if (confirm('¿Seguro que quieres abandonar el simulacro? Se perderán las respuestas.')) { if (tempo) clearInterval(tempo); atras(); }
+    if (confirmarAbandono(pila[pila.length - 1])) {
+      s.terminada = true;
+      if (tempo) clearInterval(tempo);
+      atras(true);
+    }
   }
   function terminar(porTiempo) {
+    if (s.terminada) return;
+    s.terminada = true;
     if (tempo) clearInterval(tempo);
-    var segundos = Math.floor((Date.now() - inicio) / 1000);
+    var segundos = Math.floor((Date.now() - s.inicio) / 1000);
     if (!cfg.inmediato) {
-      lista.forEach(function (p, k) { if (respuestas[k] !== null) registrar(p.id, respuestas[k] === p.correcta); });
+      lista.forEach(function (p, k) {
+        if (s.respuestas[k] !== null) registrar(p.id, s.respuestas[k] === p.correcta, cfg.modo, false);
+      });
     }
-    var res = { lista: lista, respuestas: respuestas, segundos: segundos, porTiempo: porTiempo,
-                modo: cfg.modo, etiqueta: cfg.etiqueta, reintentos: reintentos };
+    var res = { lista: lista, respuestas: s.respuestas, segundos: segundos, porTiempo: porTiempo,
+                modo: cfg.modo, etiqueta: cfg.etiqueta, reintentos: s.reintentos };
     if (cfg.modo === 'simulacro') guardarSimulacro(res);
     reemplazar(pResultado, 'Resultado', res);
   }
@@ -761,7 +1114,8 @@ function pSesion(c, cfg) {
 }
 
 function bloqueExplicacion(p, acerto) {
-  var b = el('div', { class: 'feedback ' + (acerto ? 'bien' : 'mal') });
+  var b = el('div', { class: 'feedback ' + (acerto ? 'bien' : 'mal'), role: 'status',
+    'aria-live': 'polite', tabindex: '-1' });
   b.appendChild(el('div', { class: 'cab', text: acerto ? '✓ Correcto' : '✗ Incorrecto' }));
   if (!acerto) {
     b.appendChild(el('div', { class: 'exp', style: 'margin-bottom:8px',
@@ -775,6 +1129,7 @@ function bloqueExplicacion(p, acerto) {
 
 /* ===================== resultado ===================== */
 function guardarSimulacro(res) {
+  if (!puedeEditar()) return false;
   var ac = res.lista.filter(function (p, k) { return res.respuestas[k] === p.correcta; }).length;
   var porParte = {};
   res.lista.forEach(function (p, k) {
@@ -787,7 +1142,8 @@ function guardarSimulacro(res) {
   E.simulacros.push({ fecha: hoyStr(), aciertos: ac, total: res.lista.length,
     nota: Math.round((ac / res.lista.length) * 1000) / 10, segundos: res.segundos, porParte: porParte });
   if (E.simulacros.length > 100) E.simulacros.shift();
-  guardar();
+  E.revision++; guardar();
+  return true;
 }
 
 function pResultado(c, res) {
@@ -844,7 +1200,7 @@ function pResultado(c, res) {
         el('td', { class: 'num', text: Math.round((g.ac / g.total) * 100) + '%' })
       ]));
     });
-    c.appendChild(el('div', { class: 'card' }, [el('h3', { text: 'Por partes del temario' }), t]));
+    c.appendChild(el('div', { class: 'card' }, [el('h2', { text: 'Por partes del temario' }), t]));
   }
 
   var falladas = lista.filter(function (p, k) { return resp[k] !== p.correcta; });
@@ -854,7 +1210,7 @@ function pResultado(c, res) {
       reemplazar(pSesion, 'Repasar los fallos', { preguntas: baraja(falladas), inmediato: true, modo: 'test', etiqueta: 'Repaso de fallos' });
     } }, ['Repasar los ' + falladas.length + ' fallos']));
   }
-  acciones.appendChild(el('button', { class: 'btn', onclick: alInicio }, ['Volver al inicio']));
+  acciones.appendChild(el('button', { class: 'btn', onclick: function () { alInicio(); } }, ['Volver al inicio']));
   c.appendChild(acciones);
 
   if (falladas.length) {
@@ -872,9 +1228,28 @@ function pResultado(c, res) {
 }
 
 /* ===================== configurar un test ===================== */
+function muestraEstratificada(preguntas, n) {
+  var grupos = {};
+  preguntas.forEach(function (p) {
+    if (!grupos[p.epigrafe]) grupos[p.epigrafe] = [];
+    grupos[p.epigrafe].push(p);
+  });
+  var colas = baraja(Object.keys(grupos)).map(function (id) { return baraja(grupos[id]); });
+  var elegidas = [];
+  while (elegidas.length < n && colas.length) {
+    var siguientes = [];
+    colas.forEach(function (cola) {
+      if (elegidas.length < n && cola.length) elegidas.push(cola.shift());
+      if (cola.length) siguientes.push(cola);
+    });
+    colas = baraja(siguientes);
+  }
+  return baraja(elegidas);
+}
+
 function pTestConfig(c) {
   var seleccion = 'todo';
-  c.appendChild(el('h3', { text: '1. ¿De qué quieres el test?' }));
+  c.appendChild(el('h2', { text: '1. ¿De qué quieres el test?' }));
   var selector = el('div', { class: 'lista' });
   var opciones = [{ id: 'todo', tit: 'Mezclado de todo el temario', sub: PREGUNTAS.length + ' preguntas disponibles' }];
   PARTES.forEach(function (pa) {
@@ -884,10 +1259,11 @@ function pTestConfig(c) {
   });
   var botonesSel = [];
   opciones.forEach(function (o) {
-    var b = el('button', { class: 'item', onclick: function () {
+    var b = el('button', { class: 'item', 'aria-pressed': o.id === seleccion ? 'true' : 'false', onclick: function () {
       seleccion = o.id;
-      botonesSel.forEach(function (x) { x.style.borderColor = ''; x.style.background = ''; });
+      botonesSel.forEach(function (x) { x.style.borderColor = ''; x.style.background = ''; x.setAttribute('aria-pressed', 'false'); });
       b.style.borderColor = 'var(--accent)'; b.style.background = 'var(--accent-soft)';
+      b.setAttribute('aria-pressed', 'true');
       refrescar();
     } }, [
       el('span', { class: 'cod', text: o.id === 'todo' ? '★' : o.id.split(':')[1] }),
@@ -898,7 +1274,7 @@ function pTestConfig(c) {
   botonesSel[0].style.borderColor = 'var(--accent)'; botonesSel[0].style.background = 'var(--accent-soft)';
   c.appendChild(selector);
 
-  c.appendChild(el('h3', { text: '2. ¿Qué nivel?', style: 'margin-top:26px' }));
+  c.appendChild(el('h2', { text: '2. ¿Qué nivel?', style: 'margin-top:26px' }));
   c.appendChild(el('p', { class: 'fuente', style: 'margin-bottom:10px', text:
     'Definiciones: se responden entendiendo el concepto. Datos concretos: hay que recordar un nombre, ' +
     'un lugar o una competencia. Cifras y matices: llevan una cifra, un plazo o una medida, o hay que ' +
@@ -908,17 +1284,18 @@ function pTestConfig(c) {
   var botonesNivel = [];
   [{ n: 0, t: 'Todos' }, { n: 1, t: 'Definiciones' }, { n: 2, t: 'Datos concretos' }, { n: 3, t: 'Cifras y matices' }]
     .forEach(function (o) {
-      var b = el('button', { class: 'btn' + (o.n === 0 ? ' primario' : ''), onclick: function () {
+      var b = el('button', { class: 'btn' + (o.n === 0 ? ' primario' : ''), 'aria-pressed': o.n === 0 ? 'true' : 'false', onclick: function () {
         nivel = o.n;
-        botonesNivel.forEach(function (x) { x.classList.remove('primario'); });
+        botonesNivel.forEach(function (x) { x.classList.remove('primario'); x.setAttribute('aria-pressed', 'false'); });
         b.classList.add('primario');
+        b.setAttribute('aria-pressed', 'true');
         refrescar();
       } }, [o.t]);
       botonesNivel.push(b); zonaNivel.appendChild(b);
     });
   c.appendChild(zonaNivel);
 
-  c.appendChild(el('h3', { text: '3. ¿Cuántas preguntas?', style: 'margin-top:26px' }));
+  c.appendChild(el('h2', { text: '3. ¿Cuántas preguntas?', style: 'margin-top:26px' }));
   var zonaN = el('div', { class: 'fila' });
   c.appendChild(zonaN);
 
@@ -954,6 +1331,7 @@ function pTestConfig(c) {
       var etiqueta = n === disp.length && n > 50 ? 'Todas (' + disp.length + ')'
                    : (real < n ? n + ' (hay ' + real + ')' : String(n));
       var b = el('button', { class: 'btn' + (n === cantidad ? ' primario' : ''),
+        'aria-pressed': n === cantidad ? 'true' : 'false',
         onclick: function () { cantidad = n; refrescar(); } }, [etiqueta]);
       zonaN.appendChild(b);
     });
@@ -963,7 +1341,7 @@ function pTestConfig(c) {
   function pintarPie(n) {
     if (!n) { pieOculto(); return; }
     pie([el('button', { class: 'btn primario', onclick: function () {
-      lanzarTest(baraja(disponibles()).slice(0, n), 'Test de ' + n);
+      lanzarTest(muestraEstratificada(disponibles(), n), 'Test de ' + n);
     } }, ['Empezar el test · ' + plural(n, 'pregunta', 'preguntas')])]);
   }
 
@@ -1005,14 +1383,15 @@ function pSimulacroIntro(c) {
   }
 
   c.appendChild(el('button', { class: 'btn primario', style: 'margin-top:14px', onclick: function () {
-    reemplazar(pSesion, 'Simulacro', { preguntas: baraja(PREGUNTAS).slice(0, n), inmediato: false,
+    reemplazar(pSesion, 'Simulacro', { preguntas: muestraEstratificada(PREGUNTAS, n), inmediato: false,
       modo: 'simulacro', minutos: EXAMEN.minutos_simulacro, etiqueta: 'Simulacro' });
   } }, ['Empezar el simulacro']));
 }
 
 /* ===================== repaso inteligente ===================== */
 function pRepaso(c) {
-  var cola = colaDeHoy();
+  var datosCola = datosColaDeHoy();
+  var cola = datosCola.lista;
   if (!cola.length) {
     c.appendChild(el('div', { class: 'vacio', html:
       '<p style="font-size:2.5rem;margin:0 0 8px">✅</p><p><b>Nada pendiente por hoy' + esc(coma()) + '.</b></p>' +
@@ -1022,9 +1401,11 @@ function pRepaso(c) {
   }
   var nuevas = cola.filter(function (p) { return !E.srs[p.id]; }).length;
   c.appendChild(el('div', { class: 'card' }, [
-    el('h2', { text: plural(cola.length, 'pregunta para hoy', 'preguntas para hoy') }),
+    el('h2', { text: plural(cola.length, 'pregunta en este bloque', 'preguntas en este bloque') }),
     el('p', { html: (cola.length - nuevas) + ' de repaso y ' + nuevas + ' nuevas. ' +
-      'Cuando aciertas, la pregunta tarda más en volver: 1, 3, 7, 16, 35 días… Cuando fallas, vuelve mañana.' })
+      'Cuando aciertas, la pregunta tarda más en volver: 1, 3, 7, 16, 35 días… Cuando fallas, vuelve mañana.' }),
+    datosCola.total > cola.length ? el('p', { class: 'fuente', text:
+      'Hay ' + (datosCola.total - cola.length) + ' preguntas más pendientes. Aparecerán en el siguiente bloque para que la sesión no sea interminable.' }) : null
   ]));
   c.appendChild(el('button', { class: 'btn primario', onclick: function () {
     reemplazar(pSesion, 'Repaso de hoy', { preguntas: cola, inmediato: true, modo: 'repaso', etiqueta: 'Repaso' });
@@ -1041,31 +1422,55 @@ function pRepaso(c) {
 /* ===================== fichas ===================== */
 function pFichas(c, a) {
   var ep = a.ep;
-  var fichas = baraja((ep.fichas || []).map(function (f, k) { return { f: f, clave: ep.id + '#' + k }; }));
-  var i = 0, girada = false;
+  var h = hoyStr();
+  var todas = (ep.fichas || []).map(function (f) {
+    var clave = claveFicha(ep, f);
+    var t = E.fichas[clave];
+    return { f: f, clave: clave, revisable: !t || t.due <= h };
+  });
+  if (!a.sesion) a.sesion = { fichas: baraja(todas.filter(function (f) { return f.revisable; })), i: 0, girada: false };
+  var sesion = a.sesion;
 
   var cont = el('div');
   c.appendChild(cont);
 
   function dibujar() {
-    if (i >= fichas.length) {
+    if (!sesion.fichas.length) {
       cont.innerHTML = '';
-      cont.appendChild(el('div', { class: 'vacio', html: '<p style="font-size:2.5rem;margin:0 0 8px">🎉</p><p><b>Fichas terminadas' + esc(coma()) + '.</b></p>' }));
-      cont.appendChild(el('button', { class: 'btn primario', onclick: function () { i = 0; girada = false; fichas = baraja(fichas); dibujar(); } }, ['Otra vuelta']));
-      cont.appendChild(el('button', { class: 'btn sutil', style: 'margin-top:10px', onclick: atras }, ['Volver al tema']));
+      cont.appendChild(el('div', { class: 'vacio', html: '<p style="font-size:2.5rem;margin:0 0 8px">✅</p><p><b>No hay fichas pendientes de este tema.</b></p><p>Volverán cuando toque repasarlas.</p>' }));
+      cont.appendChild(el('button', { class: 'btn', onclick: function () {
+        a.sesion = { fichas: baraja(todas.map(function (f) {
+          return { f: f.f, clave: f.clave, revisable: false };
+        })), i: 0, girada: false };
+        sesion = a.sesion; dibujar();
+      } }, ['Repasar todas de todos modos']));
       teclado = null;
       return;
     }
-    var item = fichas[i];
+    if (sesion.i >= sesion.fichas.length) {
+      cont.innerHTML = '';
+      cont.appendChild(el('div', { class: 'vacio', html: '<p style="font-size:2.5rem;margin:0 0 8px">🎉</p><p><b>Fichas terminadas' + esc(coma()) + '.</b></p>' }));
+      cont.appendChild(el('button', { class: 'btn primario', onclick: function () {
+        sesion.i = 0; sesion.girada = false;
+        sesion.fichas = baraja(sesion.fichas.map(function (f) {
+          return { f: f.f, clave: f.clave, revisable: false };
+        }));
+        dibujar();
+      } }, ['Otra vuelta sin alterar el calendario']));
+      cont.appendChild(el('button', { class: 'btn sutil', style: 'margin-top:10px', onclick: function () { atras(); } }, ['Volver al tema']));
+      teclado = null;
+      return;
+    }
+    var item = sesion.fichas[sesion.i];
     cont.innerHTML = '';
-    cont.appendChild(el('div', { class: 'contador' }, [el('span', { text: 'Ficha ' + (i + 1) + ' de ' + fichas.length }), el('span', { text: ep.id })]));
+    cont.appendChild(el('div', { class: 'contador' }, [el('span', { text: 'Ficha ' + (sesion.i + 1) + ' de ' + sesion.fichas.length }), el('span', { text: ep.id })]));
 
-    var caja = el('div', { class: 'ficha' + (girada ? ' girada' : ''), onclick: girar,
-      text: girada ? item.f.reverso : item.f.anverso });
+    var caja = el('button', { type: 'button', class: 'ficha' + (sesion.girada ? ' girada' : ''), onclick: girar,
+      'aria-pressed': sesion.girada ? 'true' : 'false', text: sesion.girada ? item.f.reverso : item.f.anverso });
     cont.appendChild(caja);
-    cont.appendChild(el('div', { class: 'ficha-pista', text: girada ? '¿La sabías?' : 'Toca la ficha (o pulsa Intro) para ver la respuesta' }));
+    cont.appendChild(el('div', { class: 'ficha-pista', text: sesion.girada ? '¿La sabías?' : 'Toca la ficha (o pulsa Intro) para ver la respuesta' }));
 
-    if (girada) {
+    if (sesion.girada) {
       var fila = el('div', { class: 'fila' });
       fila.appendChild(el('button', { class: 'btn', onclick: function () { responder(false); } }, ['✗ No la sabía']));
       fila.appendChild(el('button', { class: 'btn primario', onclick: function () { responder(true); } }, ['✓ La sabía']));
@@ -1076,16 +1481,21 @@ function pFichas(c, a) {
       teclado = { seguir: function () { girar(); return true; } };
     }
   }
-  function girar() { girada = !girada; dibujar(); }
+  function girar() { sesion.girada = !sesion.girada; dibujar(); }
   function responder(sabia) {
+    if (!puedeEditar()) return;
     var t = E.fichas[item_clave()] || { n: 0, due: hoyStr() };
-    if (sabia) { t.n++; t.due = sumarDias(hoyStr(), INTERVALOS[Math.min(t.n - 1, INTERVALOS.length - 1)]); }
-    else { t.n = 0; t.due = sumarDias(hoyStr(), 1); }
-    E.fichas[item_clave()] = t;
-    tocarRacha(); guardar();
-    i++; girada = false; dibujar();
+    var item = sesion.fichas[sesion.i];
+    if (item.revisable && t.lastReviewed !== h) {
+      if (sabia) { t.n = Math.min(INTERVALOS.length, t.n + 1); t.due = sumarDias(h, INTERVALOS[Math.min(t.n - 1, INTERVALOS.length - 1)]); }
+      else { t.n = 0; t.due = sumarDias(h, 1); }
+      t.lastReviewed = h;
+      E.fichas[item_clave()] = t;
+    }
+    tocarRacha(); E.revision++; guardar();
+    sesion.i++; sesion.girada = false; dibujar();
   }
-  function item_clave() { return fichas[i].clave; }
+  function item_clave() { return sesion.fichas[sesion.i].clave; }
   dibujar();
 }
 
@@ -1101,7 +1511,7 @@ function dominioParte(pa) {
 function pProgreso(c) {
   var r = E.racha;
   c.appendChild(el('div', { class: 'card' }, [
-    el('h3', { text: 'Constancia' }),
+    el('h2', { text: 'Constancia' }),
     el('p', { html: '🔥 <b>' + plural(r.dias, 'día seguido', 'días seguidos') + '</b> estudiando · récord: ' + plural(r.mejor, 'día', 'días') }),
     el('p', { class: 'fuente', text: 'Cuenta un día cada vez que respondes algo o lees un tema.' })
   ]));
@@ -1117,7 +1527,7 @@ function pProgreso(c) {
           el('span', { text: pa.titulo }),
           el('b', { text: d.pct + '%' })
         ]),
-        el('div', { class: 'barra' }, [el('i', { style: 'width:' + d.pct + '%;background:' + colorParte(pa) })]),
+        barraProgreso(d.pct, 'Dominio de la parte ' + pa.parte, '', colorParte(pa)),
         el('small', { class: 'fuente', text: d.dominadas + ' de ' + d.total + ' preguntas dominadas' })
       ])
     ]));
@@ -1133,10 +1543,10 @@ function pProgreso(c) {
     c.appendChild(el('div', { class: 'card' }, [grafica(E.simulacros)]));
   }
 
-  var pend = colaDeHoy().length;
+  var datosPend = datosColaDeHoy();
   c.appendChild(el('div', { class: 'card plano' }, [
     el('p', { style: 'margin:0', html: 'Preguntas en el sistema: <b>' + PREGUNTAS.length + '</b> · vistas al menos una vez: <b>' +
-      Object.keys(E.srs).length + '</b> · pendientes hoy: <b>' + pend + '</b> · marcadas como falladas: <b>' + E.fallos.length + '</b>' })
+      Object.keys(E.practica).length + '</b> · pendientes hoy: <b>' + datosPend.total + '</b> · marcadas como falladas: <b>' + E.fallos.length + '</b>' })
   ]));
 }
 
@@ -1181,7 +1591,7 @@ function grafica(sims) {
 /* ===================== copia de seguridad ===================== */
 function pCopia(c) {
   c.appendChild(el('div', { class: 'card' }, [
-    el('h3', { text: 'Guardar tu progreso en un archivo' }),
+    el('h2', { text: 'Guardar tu progreso en un archivo' }),
     el('p', { text: 'Se descarga un archivo pequeño con todo lo que llevas estudiado. Guárdalo donde quieras. Te sirve por si cambias de ordenador o de móvil, o por si borras el historial del navegador.' }),
     el('button', { class: 'btn primario', onclick: descargarCopia }, ['💾 Guardar mi progreso'])
   ]));
@@ -1189,29 +1599,50 @@ function pCopia(c) {
   var entrada = el('input', { type: 'file', accept: '.json,application/json', class: 'oculto',
     onchange: function (ev) { restaurarCopia(ev.target.files[0]); } });
   c.appendChild(el('div', { class: 'card' }, [
-    el('h3', { text: 'Recuperar un progreso guardado' }),
+    el('h2', { text: 'Recuperar un progreso guardado' }),
     el('p', { text: 'Busca el archivo que guardaste antes. Cuidado: sustituye por completo lo que tengas ahora en este aparato.' }),
     el('button', { class: 'btn', onclick: function () { entrada.click(); } }, ['📂 Recuperar desde un archivo']),
     entrada
   ]));
 
   c.appendChild(el('div', { class: 'aviso', html:
-    '<b>Importante:</b> el progreso del ordenador y el del móvil son independientes. Para pasarlo de uno a otro, guarda el archivo aquí y recupéralo allí.' }));
+    '<b>Importante:</b> cada dispositivo y cada dirección web guardan un progreso independiente. ' +
+    'Usa normalmente <b>oposicion-metro.pages.dev</b>. Si cambias de aparato o abres la copia de GitHub, guarda el archivo aquí y recupéralo allí.' }));
+
+  var anterior = null;
+  try { anterior = localStorage.getItem(CLAVE_ANTES_RESTAURAR); } catch (err) {}
+  if (anterior) c.appendChild(el('div', { class: 'card' }, [
+    el('h2', { text: 'Deshacer la última recuperación' }),
+    el('p', { text: 'La aplicación conserva automáticamente el progreso que había justo antes de recuperar un archivo.' }),
+    el('button', { class: 'btn', onclick: function () {
+      if (!puedeEditar() || !confirm('¿Recuperar el progreso anterior a la última restauración?')) return;
+      try {
+        var previo = normalizarEstado(JSON.parse(localStorage.getItem(CLAVE_ANTES_RESTAURAR)), false);
+        var actual = JSON.stringify(E);
+        E = previo; E.revision++;
+        if (!guardarYa()) throw new Error('guardado');
+        localStorage.setItem(CLAVE_ANTES_RESTAURAR, actual);
+        alert('Listo. Se ha recuperado el progreso anterior.');
+        alInicio(true);
+      } catch (err) { alert('No se ha podido recuperar el progreso anterior.'); }
+    } }, ['↶ Deshacer la última recuperación'])
+  ]));
 
   c.appendChild(el('div', { class: 'card' }, [
-    el('h3', { text: 'Empezar de cero' }),
+    el('h2', { text: 'Empezar de cero' }),
     el('p', { class: 'fuente', text: 'Borra todo tu progreso en este aparato. No se puede deshacer.' }),
     el('button', { class: 'btn peligro', onclick: function () {
-      if (confirm('¿Seguro? Se borrará todo tu progreso en este aparato.') &&
+      if (puedeEditar() && confirm('¿Seguro? Se borrará todo tu progreso en este aparato.') &&
           confirm('Última confirmación: esto no se puede deshacer.')) {
-        E = estadoInicial(); guardar(); alInicio();
+        E = estadoInicial(); E.revision++; guardarYa(); alInicio(true);
       }
     } }, ['Borrar todo mi progreso'])
   ]));
 }
 
 function descargarCopia() {
-  var datos = JSON.stringify({ app: 'oposicion-metro', v: 1, exportado: new Date().toISOString(), estado: E }, null, 2);
+  guardarYa();
+  var datos = JSON.stringify({ app: 'oposicion-metro', v: VERSION_ESTADO, exportado: new Date().toISOString(), estado: E }, null, 2);
   var blob = new Blob([datos], { type: 'application/json' });
   var url = URL.createObjectURL(blob);
   var a = el('a', { href: url, download: 'progreso-oposicion-metro-' + hoyStr() + '.json' });
@@ -1221,19 +1652,31 @@ function descargarCopia() {
 
 function restaurarCopia(archivo) {
   if (!archivo) return;
+  if (archivo.size > 5 * 1024 * 1024) {
+    alert('Ese archivo es demasiado grande para ser una copia de progreso válida.');
+    return;
+  }
   var lector = new FileReader();
   lector.onload = function () {
     try {
       var obj = JSON.parse(lector.result);
-      var nuevo = obj && obj.estado ? obj.estado : obj;
-      if (!nuevo || typeof nuevo !== 'object' || !nuevo.srs) throw new Error('formato');
+      if (!puedeEditar()) return;
+      if (obj && obj.estado) {
+        if (obj.app !== 'oposicion-metro') throw new Error('aplicacion');
+        if (!Number.isInteger(obj.v) || obj.v < 1 || obj.v > VERSION_ESTADO) throw new Error('version');
+      }
+      var nuevo = normalizarEstado(obj && obj.estado ? obj.estado : obj, true);
       if (!confirm('Se va a sustituir tu progreso actual por el del archivo. ¿Continuar?')) return;
-      E = nuevo;
-      var base = estadoInicial();
-      for (var k in base) if (!(k in E)) E[k] = base[k];
-      guardar();
+      var anterior = JSON.stringify(E);
+      try { localStorage.setItem(CLAVE_ANTES_RESTAURAR, anterior); } catch (err) {}
+      E = nuevo; E.revision++;
+      if (!guardarYa()) { E = normalizarEstado(JSON.parse(anterior), false); guardarYa(); throw new Error('guardado'); }
+      var comprobado = normalizarEstado(JSON.parse(localStorage.getItem(CLAVE)), true);
+      if (JSON.stringify(comprobado) !== JSON.stringify(E)) {
+        E = normalizarEstado(JSON.parse(anterior), false); guardarYa(); throw new Error('verificacion');
+      }
       alert('Listo. Tu progreso se ha recuperado.');
-      alInicio();
+      alInicio(true);
     } catch (err) {
       alert('Ese archivo no vale. Tiene que ser el que descargaste con el botón «Guardar mi progreso».');
     }
@@ -1257,19 +1700,22 @@ function pBuscador(c) {
       res.appendChild(el('div', { class: 'vacio', text: 'Escribe al menos dos letras.' }));
       return;
     }
-    var temas = EPIGRAFES.filter(function (ep) {
+    var todosTemas = EPIGRAFES.filter(function (ep) {
       return normaliza(ep.titulo + ' ' + ep.resumen_md).indexOf(t) >= 0;
-    }).slice(0, 12);
-    var pregs = PREGUNTAS.filter(function (p) {
+    });
+    var todasPregs = PREGUNTAS.filter(function (p) {
       return normaliza(p.enunciado + ' ' + p.opciones.join(' ') + ' ' + p.explicacion).indexOf(t) >= 0;
-    }).slice(0, 25);
+    });
+    var temas = todosTemas.slice(0, 12);
+    var pregs = todasPregs.slice(0, 25);
 
     if (!temas.length && !pregs.length) {
       res.appendChild(el('div', { class: 'vacio', text: 'Nada encontrado.' }));
       return;
     }
     if (temas.length) {
-      res.appendChild(el('div', { class: 'seccion-tit', text: plural(temas.length, 'tema', 'temas') }));
+      res.appendChild(el('div', { class: 'seccion-tit', text:
+        (temas.length === todosTemas.length ? plural(temas.length, 'tema', 'temas') : temas.length + ' de ' + todosTemas.length + ' temas') }));
       var l1 = el('div', { class: 'lista' });
       temas.forEach(function (ep) {
         l1.appendChild(el('button', { class: 'item', onclick: function () { ir(pTema, 'Tema ' + ep.id, { ep: ep }); } }, [
@@ -1281,7 +1727,8 @@ function pBuscador(c) {
       res.appendChild(l1);
     }
     if (pregs.length) {
-      res.appendChild(el('div', { class: 'seccion-tit', text: plural(pregs.length, 'pregunta', 'preguntas') }));
+      res.appendChild(el('div', { class: 'seccion-tit', text:
+        (pregs.length === todasPregs.length ? plural(pregs.length, 'pregunta', 'preguntas') : pregs.length + ' de ' + todasPregs.length + ' preguntas') }));
       res.appendChild(el('button', { class: 'btn primario', style: 'margin-bottom:10px', onclick: function () {
         lanzarTest(baraja(pregs), 'Búsqueda: ' + q); } }, ['Hacer un test con estas ' + pregs.length]));
       var l2 = el('div', { class: 'lista' });
@@ -1314,7 +1761,7 @@ function pSobre(c) {
   ) })]));
 
   c.appendChild(el('div', { class: 'card' }, [
-    el('h3', { text: 'Enlaces oficiales' }),
+    el('h2', { text: 'Enlaces oficiales' }),
     el('div', { class: 'lista' }, [
       el('a', { class: 'item', href: 'https://www.metromadrid.es/es/oferta-empleo/maquinista-de-traccion-electrica-y-jefea-de-sector-0',
         target: '_blank', rel: 'noopener' }, [
@@ -1324,7 +1771,7 @@ function pSobre(c) {
       el('a', { class: 'item', href: 'https://www.bocm.es/boletin/CM_Orden_BOCM/2026/08/07/BOCM-20260807-5.PDF',
         target: '_blank', rel: 'noopener' }, [
         el('span', { class: 'cod', text: '⚖️' }),
-        el('span', { class: 'cuerpo' }, [el('b', { text: 'Anuncio en el BOCM' }), el('small', { text: '7 de agosto de 2026 · 30 plazas' })])
+        el('span', { class: 'cuerpo' }, [el('b', { text: 'Anuncio en el BOCM' }), el('small', { text: '7 de agosto de 2026 · 30 plazas totales: 15 de Maquinista y 15 de Jefe/a de Sector' })])
       ])
     ])
   ]));
@@ -1335,220 +1782,17 @@ function pSobre(c) {
 }
 
 /* ===================== PSICOTÉCNICOS =====================
-   Todos los ejercicios se generan por algoritmo en el momento:
-   son infinitos y la solución es comprobable por construcción.
+   El motor puro vive en psicotecnicos.js y se incrusta antes que esta app.
    ======================================================== */
-
-/* --- series numéricas --- */
-function generaSerie() {
-  var tipos = ['aritmetica', 'geometrica', 'alterna', 'cuadratica', 'fibonacci', 'multisuma'];
-  var tipo = tipos[aleatorio(tipos.length)];
-  var it = [], resp, exp, i;
-
-  if (tipo === 'aritmetica') {
-    var a = 2 + aleatorio(20), d = (2 + aleatorio(11)) * (Math.random() < .25 ? -1 : 1);
-    for (i = 0; i < 6; i++) it.push(a + i * d);
-    resp = a + 6 * d;
-    exp = 'Cada término ' + (d > 0 ? 'suma ' + d : 'resta ' + Math.abs(d)) + ' al anterior.';
-  } else if (tipo === 'geometrica') {
-    var g = 1 + aleatorio(5), r = 2 + aleatorio(2);
-    for (i = 0; i < 5; i++) it.push(g * Math.pow(r, i));
-    resp = g * Math.pow(r, 5);
-    exp = 'Cada término es el anterior multiplicado por ' + r + '.';
-  } else if (tipo === 'alterna') {
-    var a1 = 1 + aleatorio(15), d1 = 2 + aleatorio(7);
-    var a2 = 40 + aleatorio(30), d2 = -(2 + aleatorio(6));
-    for (i = 0; i < 3; i++) { it.push(a1 + i * d1); it.push(a2 + i * d2); }
-    resp = a1 + 3 * d1;
-    exp = 'Hay dos series entrelazadas. La de las posiciones impares suma ' + d1 +
-          ' y la de las pares resta ' + Math.abs(d2) + '. Toca la primera.';
-  } else if (tipo === 'cuadratica') {
-    var b = 1 + aleatorio(9), d0 = 1 + aleatorio(5), e = 1 + aleatorio(4), v = b, dd = d0;
-    for (i = 0; i < 6; i++) { it.push(v); v += dd; dd += e; }
-    resp = v;
-    exp = 'La diferencia entre términos no es fija: crece de ' + e + ' en ' + e + '.';
-  } else if (tipo === 'fibonacci') {
-    var x = 1 + aleatorio(6), y = 1 + aleatorio(8);
-    it = [x, y];
-    for (i = 0; i < 4; i++) it.push(it[it.length - 1] + it[it.length - 2]);
-    resp = it[it.length - 1] + it[it.length - 2];
-    exp = 'Cada término es la suma de los dos anteriores.';
-  } else {
-    var m = 2 + aleatorio(2), k = 1 + aleatorio(7), z = 1 + aleatorio(5);
-    it = [z];
-    for (i = 0; i < 5; i++) it.push(it[it.length - 1] * m + k);
-    resp = it[it.length - 1] * m + k;
-    exp = 'Cada término se multiplica por ' + m + ' y se le suma ' + k + '.';
-  }
-
-  var opciones = distractoresNumericos(resp, it);
-  return { clase: 'serie', items: it, opciones: opciones.lista, correcta: opciones.idx,
-           enunciado: '¿Qué número continúa la serie?', explicacion: exp + ' El resultado es ' + resp + '.' };
-}
-function distractoresNumericos(resp, serie) {
-  var set = {}, out = [resp];
-  set[resp] = 1;
-  var ultimo = serie[serie.length - 1];
-  var candidatos = [resp + 1, resp - 1, resp + 2, resp - 2, ultimo + (ultimo - serie[serie.length - 2]),
-                    resp + Math.max(2, Math.round(Math.abs(resp) * .1)), resp - Math.max(2, Math.round(Math.abs(resp) * .1)),
-                    resp + 5, resp - 5, resp * 2 - ultimo];
-  baraja(candidatos).forEach(function (v) {
-    v = Math.round(v);
-    if (out.length < 4 && !set[v] && isFinite(v)) { set[v] = 1; out.push(v); }
-  });
-  var n = 10;
-  while (out.length < 4) { if (!set[resp + n]) { set[resp + n] = 1; out.push(resp + n); } n += 3; }
-  var mezcla = baraja(out);
-  return { lista: mezcla.map(String), idx: mezcla.indexOf(resp) };
-}
-
-/* --- razonamiento verbal --- */
-var SINONIMOS = [
-  ['ávido', 'ansioso', ['austero', 'tardío', 'sereno']],
-  ['efímero', 'pasajero', ['perpetuo', 'sólido', 'rotundo']],
-  ['nimio', 'insignificante', ['enorme', 'urgente', 'ruidoso']],
-  ['acervo', 'conjunto', ['aspereza', 'desprecio', 'penuria']],
-  ['inocuo', 'inofensivo', ['contagioso', 'insípido', 'inaudito']],
-  ['prolijo', 'detallado', ['escueto', 'confuso', 'torpe']],
-  ['óbice', 'obstáculo', ['ayuda', 'permiso', 'tramo']],
-  ['tácito', 'sobrentendido', ['expreso', 'ruidoso', 'dudoso']],
-  ['zanjar', 'resolver', ['enredar', 'excavar', 'aplazar']],
-  ['insigne', 'ilustre', ['anónimo', 'insulso', 'endeble']],
-  ['aciago', 'desdichado', ['festivo', 'templado', 'previsible']],
-  ['diáfano', 'transparente', ['turbio', 'rígido', 'estrecho']],
-  ['exiguo', 'escaso', ['abundante', 'exacto', 'exigente']],
-  ['perentorio', 'urgente', ['opcional', 'duradero', 'periódico']],
-  ['soslayar', 'eludir', ['afrontar', 'sostener', 'señalar']],
-  ['mermar', 'disminuir', ['ampliar', 'mezclar', 'reparar']],
-  ['adusto', 'severo', ['afable', 'adulto', 'ágil']],
-  ['fortuito', 'casual', ['premeditado', 'afortunado', 'forzoso']],
-  ['ínfimo', 'mínimo', ['máximo', 'medio', 'infame']],
-  ['conciso', 'breve', ['extenso', 'consciente', 'concreto']],
-  ['irascible', 'colérico', ['pacífico', 'irónico', 'razonable']],
-  ['veraz', 'verdadero', ['falaz', 'voraz', 'vertical']],
-  ['pusilánime', 'cobarde', ['audaz', 'generoso', 'punzante']],
-  ['albergar', 'alojar', ['expulsar', 'blanquear', 'anunciar']],
-  ['baladí', 'trivial', ['crucial', 'balsámico', 'baldío']],
-  ['contumaz', 'obstinado', ['dócil', 'contagioso', 'contiguo']],
-  ['dirimir', 'zanjar', ['agravar', 'dirigir', 'derretir']],
-  ['lacónico', 'parco', ['locuaz', 'lácteo', 'lóbrego']]
-];
-var ANTONIMOS = [
-  ['prolijo', 'escueto', ['detallado', 'extenso', 'minucioso']],
-  ['efímero', 'perdurable', ['fugaz', 'breve', 'pasajero']],
-  ['ínfimo', 'máximo', ['mínimo', 'escaso', 'pequeño']],
-  ['adusto', 'afable', ['severo', 'seco', 'huraño']],
-  ['tácito', 'explícito', ['implícito', 'callado', 'supuesto']],
-  ['exiguo', 'abundante', ['escaso', 'corto', 'raquítico']],
-  ['pusilánime', 'audaz', ['cobarde', 'tímido', 'medroso']],
-  ['diáfano', 'turbio', ['claro', 'nítido', 'limpio']],
-  ['contumaz', 'dócil', ['terco', 'tenaz', 'porfiado']],
-  ['veraz', 'mendaz', ['sincero', 'fiel', 'cierto']],
-  ['nimio', 'trascendental', ['leve', 'menudo', 'trivial']],
-  ['lacónico', 'locuaz', ['breve', 'conciso', 'sobrio']]
-];
-var ANALOGIAS = [
-  ['maquinista', 'tren', 'piloto', 'avión', ['aeropuerto', 'billete', 'azafata']],
-  ['andén', 'estación', 'muelle', 'puerto', ['barco', 'marinero', 'ancla']],
-  ['semáforo', 'circulación', 'señal', 'ferrocarril', ['vagón', 'túnel', 'raíl']],
-  ['carril', 'vía', 'peldaño', 'escalera', ['ascensor', 'subida', 'pasamanos']],
-  ['freno', 'detener', 'acelerador', 'arrancar', ['motor', 'volante', 'rueda']],
-  ['médico', 'hospital', 'profesor', 'colegio', ['alumno', 'libro', 'examen']],
-  ['reloj', 'tiempo', 'termómetro', 'temperatura', ['fiebre', 'grados', 'calor']],
-  ['agua', 'sed', 'comida', 'hambre', ['plato', 'cocina', 'sabor']],
-  ['llave', 'cerradura', 'contraseña', 'cuenta', ['ordenador', 'usuario', 'correo']],
-  ['libro', 'capítulo', 'edificio', 'planta', ['ladrillo', 'arquitecto', 'ciudad']],
-  ['abeja', 'colmena', 'hormiga', 'hormiguero', ['reina', 'miel', 'insecto']],
-  ['tijera', 'cortar', 'martillo', 'clavar', ['clavo', 'madera', 'golpe']]
-];
-
-function generaVerbal() {
-  var r = Math.random();
-  if (r < 0.4) {
-    var s = SINONIMOS[aleatorio(SINONIMOS.length)];
-    return montaVerbal('¿Cuál es el sinónimo de «' + s[0] + '»?', s[1], s[2],
-      '«' + s[0] + '» significa lo mismo que «' + s[1] + '».');
-  } else if (r < 0.7) {
-    var a = ANTONIMOS[aleatorio(ANTONIMOS.length)];
-    return montaVerbal('¿Cuál es el antónimo de «' + a[0] + '»?', a[1], a[2],
-      'El contrario de «' + a[0] + '» es «' + a[1] + '». Los demás son sinónimos suyos, no antónimos.');
-  }
-  var g = ANALOGIAS[aleatorio(ANALOGIAS.length)];
-  return montaVerbal(g[0] + ' es a ' + g[1] + ' como ' + g[2] + ' es a…', g[3], g[4],
-    'La relación es la misma en los dos pares: ' + g[0] + '/' + g[1] + ' y ' + g[2] + '/' + g[3] + '.');
-}
-function montaVerbal(enunciado, correcta, malas, exp) {
-  var ops = baraja([correcta].concat(malas.slice(0, 3)));
-  return { clase: 'verbal', enunciado: enunciado, opciones: ops, correcta: ops.indexOf(correcta), explicacion: exp };
-}
-
-/* --- razonamiento espacial: rotación de figuras --- */
-var N = 3;
-function claveCeldas(cs) { return cs.map(function (c) { return c[0] + ',' + c[1]; }).sort().join('|'); }
-function rota(cs) { return cs.map(function (c) { return [c[1], N - 1 - c[0]]; }); }
-function espeja(cs) { return cs.map(function (c) { return [c[0], N - 1 - c[1]]; }); }
-function rotaN(cs, k) { var r = cs; for (var i = 0; i < k; i++) r = rota(r); return r; }
-
-function generaEspacial() {
-  var base, intentos = 0;
-  do {
-    base = [];
-    var todas = [];
-    for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) todas.push([r, c]);
-    base = baraja(todas).slice(0, 4 + aleatorio(2));
-    intentos++;
-  } while (intentos < 60 && (
-    claveCeldas(base) === claveCeldas(rota(base)) ||
-    claveCeldas(base) === claveCeldas(rotaN(base, 2)) ||
-    claveCeldas(base) === claveCeldas(espeja(base))
-  ));
-
-  var giros = [1, 2, 3];
-  var k = giros[aleatorio(giros.length)];
-  var nombre = { 1: '90° a la derecha', 2: '180°', 3: '90° a la izquierda' }[k];
-  var correcta = rotaN(base, k);
-
-  var candidatos = [espeja(correcta), rota(correcta), rotaN(correcta, 2), espeja(rota(correcta))];
-  var usados = {};
-  usados[claveCeldas(correcta)] = 1;
-  usados[claveCeldas(base)] = 1;   // nunca ofrecer la figura original sin girar
-  var malas = [];
-  candidatos.forEach(function (c) {
-    var cl = claveCeldas(c);
-    if (malas.length < 3 && !usados[cl]) { usados[cl] = 1; malas.push(c); }
-  });
-  var seguridad = 0;
-  while (malas.length < 3 && seguridad++ < 80) {
-    var m = correcta.slice();
-    m[aleatorio(m.length)] = [aleatorio(N), aleatorio(N)];
-    var claves = {}; var limpio = m.filter(function (x) { var c = x[0] + ',' + x[1]; if (claves[c]) return false; claves[c] = 1; return true; });
-    var cl2 = claveCeldas(limpio);
-    if (!usados[cl2] && limpio.length === correcta.length) { usados[cl2] = 1; malas.push(limpio); }
-  }
-
-  var ops = baraja([correcta].concat(malas));
-  return { clase: 'espacial', figuraBase: base,
-    enunciado: '¿Cuál de estas figuras es la de arriba girada ' + nombre + '?',
-    opcionesFig: ops, correcta: ops.indexOf(correcta),
-    explicacion: 'Al girar ' + nombre + ', cada casilla se desplaza manteniendo su posición relativa. ' +
-      'Los distractores son la figura reflejada como en un espejo, o girada un número distinto de veces: ' +
-      'fíjate siempre en una casilla de referencia, por ejemplo la de una esquina.' };
-}
-function svgFigura(celdas, tam) {
-  tam = tam || 96;
-  var p = tam / N, out = '';
-  for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) {
-    out += '<rect x="' + (c * p) + '" y="' + (r * p) + '" width="' + p + '" height="' + p +
-           '" fill="none" stroke="var(--border)" stroke-width="1"/>';
-  }
-  celdas.forEach(function (cel) {
-    out += '<rect x="' + (cel[1] * p + 2) + '" y="' + (cel[0] * p + 2) + '" width="' + (p - 4) +
-           '" height="' + (p - 4) + '" rx="3" fill="var(--accent)"/>';
-  });
-  return '<svg viewBox="0 0 ' + tam + ' ' + tam + '" width="' + tam + '" height="' + tam +
-         '" role="img" aria-label="figura">' + out + '</svg>';
-}
-
+var MOTOR_PSICO = crearMotorPsicotecnico(baraja, aleatorio, esc);
+var generaSerie = MOTOR_PSICO.generaSerie;
+var generaVerbal = MOTOR_PSICO.generaVerbal;
+var generaEspacial = MOTOR_PSICO.generaEspacial;
+var claveCeldas = MOTOR_PSICO.claveCeldas;
+var rotaN = MOTOR_PSICO.rotaN;
+var transformacionesUnicas = MOTOR_PSICO.transformacionesUnicas;
+var svgFigura = MOTOR_PSICO.svgFigura;
+var BASES_ESPACIALES = MOTOR_PSICO.basesEspaciales;
 /* --- menú y sesión de psicotécnicos --- */
 function pPsicoMenu(c) {
   c.appendChild(el('div', { class: 'aviso info', html:
@@ -1578,17 +1822,17 @@ function pPsicoMenu(c) {
 }
 
 function pPsicoConfig(c, a) {
-  c.appendChild(el('h3', { text: '¿Cuántos ejercicios?' }));
+  c.appendChild(el('h2', { text: '¿Cuántos ejercicios?' }));
   var fila = el('div', { class: 'fila' });
   c.appendChild(fila);
   c.appendChild(el('p', { class: 'fuente', style: 'margin-top:18px',
-    text: 'Va cronometrado: en el examen el tiempo aprieta, así que conviene acostumbrarse.' }));
+    text: 'Se mide el tiempo empleado y al final verás la media por ejercicio.' }));
 
   var cantidad = 10;
   function refrescar() {
     fila.innerHTML = '';
     [10, 20, 30].forEach(function (n) {
-      fila.appendChild(el('button', { class: 'btn' + (n === cantidad ? ' primario' : ''),
+      fila.appendChild(el('button', { class: 'btn' + (n === cantidad ? ' primario' : ''), 'aria-pressed': n === cantidad ? 'true' : 'false',
         onclick: function () { cantidad = n; refrescar(); } }, [String(n)]));
     });
     pie([el('button', { class: 'btn primario', onclick: function () {
@@ -1600,15 +1844,18 @@ function pPsicoConfig(c, a) {
 
 function pPsicoSesion(c, a) {
   if (!E.psico) E.psico = {};
-  var total = a.n, i = 0, aciertos = 0, inicio = Date.now(), ejercicio = null;
+  var s = a.sesion || { total: a.n, i: 0, aciertos: 0, inicio: Date.now(), ejercicio: null,
+    respuesta: null, terminada: false, modo: 'psico' };
+  a.sesion = s;
+  var total = s.total;
   var cabecera = el('div', { class: 'contador' });
-  var barra = el('div', { class: 'barra' }, [el('i')]);
+  var barra = barraProgreso(0, 'Progreso de los psicotécnicos');
   var zona = el('div');
   c.appendChild(cabecera); c.appendChild(barra); c.appendChild(zona);
 
   var reloj = setInterval(function () {
     if (!document.body.contains(zona)) { clearInterval(reloj); return; }
-    var cr = $('#crono'); if (cr) cr.textContent = '⏱ ' + mmss(Math.floor((Date.now() - inicio) / 1000));
+    var cr = $('#crono'); if (cr) cr.textContent = '⏱ ' + mmss(Math.floor((Date.now() - s.inicio) / 1000));
   }, 1000);
 
   function genera() {
@@ -1620,21 +1867,24 @@ function pPsicoSesion(c, a) {
   }
 
   function dibujar() {
-    if (i >= total) { clearInterval(reloj); return fin(); }
-    ejercicio = genera();
+    if (s.i >= total) { clearInterval(reloj); return fin(); }
+    if (!s.ejercicio) s.ejercicio = genera();
+    var ejercicio = s.ejercicio;
     zona.innerHTML = ''; cabecera.innerHTML = '';
-    cabecera.appendChild(el('span', { text: 'Ejercicio ' + (i + 1) + ' de ' + total }));
-    cabecera.appendChild(el('span', { class: 'crono', id: 'crono', text: '⏱ ' + mmss(Math.floor((Date.now() - inicio) / 1000)) }));
-    $('i', barra).style.width = ((i / total) * 100).toFixed(1) + '%';
+    cabecera.appendChild(el('span', { text: 'Ejercicio ' + (s.i + 1) + ' de ' + total }));
+    cabecera.appendChild(el('span', { class: 'crono', id: 'crono', text: '⏱ ' + mmss(Math.floor((Date.now() - s.inicio) / 1000)) }));
+    var pctProgreso = (s.i / total) * 100;
+    $('i', barra).style.width = pctProgreso.toFixed(1) + '%';
+    barra.setAttribute('aria-valuenow', String(Math.round(pctProgreso)));
 
     var card = el('div', { class: 'card' });
     card.appendChild(el('div', { class: 'enunciado', text: ejercicio.enunciado }));
 
     if (ejercicio.clase === 'serie') {
-      var s = el('div', { class: 'serie' });
-      ejercicio.items.forEach(function (v) { s.appendChild(el('span', { text: String(v) })); });
-      s.appendChild(el('span', { class: 'hueco', text: '?' }));
-      card.appendChild(s);
+      var serieEl = el('div', { class: 'serie' });
+      ejercicio.items.forEach(function (v) { serieEl.appendChild(el('span', { text: String(v) })); });
+      serieEl.appendChild(el('span', { class: 'hueco', text: '?' }));
+      card.appendChild(serieEl);
     }
     if (ejercicio.clase === 'espacial') {
       card.appendChild(el('div', { class: 'figs' }, [el('div', { class: 'fig', html: svgFigura(ejercicio.figuraBase, 108) })]));
@@ -1662,49 +1912,62 @@ function pPsicoSesion(c, a) {
     zona.appendChild(card);
 
     teclado = { opcion: function (n) { if (n < lista.length) { elegir(n); return true; } return false; } };
+    if (s.respuesta !== null) mostrarCorreccion(false);
 
     function elegir(idx) {
+      if (!puedeEditar() || s.respuesta !== null) return;
       var ok = idx === ejercicio.correcta;
-      if (ok) aciertos++;
+      s.respuesta = idx;
+      if (ok) s.aciertos++;
       var st = E.psico[a.tipo.id] || { hechos: 0, aciertos: 0 };
       st.hechos++; if (ok) st.aciertos++;
       E.psico[a.tipo.id] = st;
-      tocarRacha(); guardar();
+      tocarRacha(); E.revision++; guardar();
 
+      mostrarCorreccion(true);
+    }
+
+    function mostrarCorreccion(enfocar) {
+      var idx = s.respuesta;
+      var ok = idx === ejercicio.correcta;
       botones.forEach(function (b, k) {
         b.disabled = true;
         if (k === ejercicio.correcta) b.classList.add('correcta');
         else if (k === idx) b.classList.add('fallada');
       });
-      botones[idx].classList.add(ok ? 'anim-ok' : 'anim-err');
+      if (enfocar) botones[idx].classList.add(ok ? 'anim-ok' : 'anim-err');
 
-      var fb = el('div', { class: 'feedback ' + (ok ? 'bien' : 'mal') });
+      var fb = el('div', { class: 'feedback ' + (ok ? 'bien' : 'mal'), role: 'status',
+        'aria-live': 'polite', tabindex: '-1' });
       fb.appendChild(el('div', { class: 'cab', text: ok ? '✓ Correcto' : '✗ Incorrecto' }));
       fb.appendChild(el('div', { class: 'exp', text: ejercicio.explicacion }));
       card.appendChild(fb);
 
       var seguir = el('button', { class: 'btn primario', style: 'margin-top:16px',
-        onclick: function () { i++; dibujar(); } }, [i === total - 1 ? 'Ver el resultado' : 'Siguiente']);
+        onclick: siguiente }, [s.i === total - 1 ? 'Ver el resultado' : 'Siguiente']);
       zona.appendChild(seguir);
-      seguir.focus({ preventScroll: true });
-      teclado = { seguir: function () { i++; dibujar(); return true; } };
+      if (enfocar) fb.focus({ preventScroll: true });
+      teclado = { seguir: function () { siguiente(); return true; } };
     }
+    function siguiente() { s.i++; s.ejercicio = null; s.respuesta = null; dibujar(); }
   }
 
   function fin() {
-    var seg = Math.floor((Date.now() - inicio) / 1000);
-    var pct = Math.round((aciertos / total) * 100);
+    s.terminada = true;
+    var seg = Math.floor((Date.now() - s.inicio) / 1000);
+    var pct = Math.round((s.aciertos / total) * 100);
     zona.innerHTML = ''; cabecera.innerHTML = ''; $('i', barra).style.width = '100%';
+    barra.setAttribute('aria-valuenow', '100');
     zona.appendChild(el('div', { class: 'card' }, [
       el('div', { class: 'nota' }, [
-        el('div', { class: 'valor ' + (pct >= 60 ? 'bien' : 'mal'), text: aciertos + '/' + total }),
+        el('div', { class: 'valor ' + (pct >= 60 ? 'bien' : 'mal'), text: s.aciertos + '/' + total }),
         el('div', { class: 'sub', text: pct + '% · ' + mmss(seg) + ' · ' + Math.round(seg / total) + ' s por ejercicio' })
       ])
     ]));
     var f = el('div', { class: 'fila' });
     f.appendChild(el('button', { class: 'btn primario', onclick: function () {
       reemplazar(pPsicoSesion, a.tipo.tit, { tipo: a.tipo, n: total }); } }, ['Otra tanda']));
-    f.appendChild(el('button', { class: 'btn', onclick: alInicio }, ['Volver al inicio']));
+    f.appendChild(el('button', { class: 'btn', onclick: function () { alInicio(); } }, ['Volver al inicio']));
     zona.appendChild(f);
     teclado = null;
   }
@@ -1723,8 +1986,84 @@ function aplicarTema() {
   b.title = oscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro';
 }
 
+// Autoprueba intensiva activada solo de forma explícita en localhost con
+// ?autotest=N. El resultado queda en un atributo del documento para CI/manual.
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && /(?:\?|&)autotest=\d+/.test(location.search)) {
+  setTimeout(function () {
+    var m = location.search.match(/(?:\?|&)autotest=(\d+)/);
+    var total = Math.min(300000, Math.max(1, Number(m && m[1]) || 1));
+    var fallos = [];
+    var posiciones = [0, 0, 0, 0], casosBarajado = 0, legadosDeclarados = 0;
+    function unicas(a) { return new Set(a.map(String)).size === a.length; }
+    // Comprueba la migración de todos los ids publicados y que barajar nunca
+    // cambia la respuesta correcta. Veinte pasadas detectan además un sesgo
+    // accidental de posición sin convertir la prueba en probabilísticamente frágil.
+    PREGUNTAS.forEach(function (p) {
+      if (!p.legacy_id) return;
+      legadosDeclarados++;
+      if (ID_ANTIGUO_A_NUEVO[p.legacy_id] !== p.id) fallos.push('migración ' + p.id);
+    });
+    var primera = PREGUNTAS.filter(function (p) { return p.legacy_id; })[0];
+    var legado = { srs: {}, practica: {}, fichas: {}, simulacros: [], fallos: [],
+      racha: { ultimo: '2026-02-30', dias: 5, mejor: 2 }, vistos: {}, nuevasHoy: {}, psico: {} };
+    if (!primera) fallos.push('manifiesto de migración vacío');
+    else {
+      legado.srs[primera.legacy_id] = { n: 99, due: '2026-99-99', fallos: 1, vistas: 3 };
+      legado.practica[primera.legacy_id] = { intentos: 2, aciertos: 9, ultimo: '2026-02-30' };
+    }
+    var primeraFichaAntigua = Object.keys(fichaAntiguaANueva)[0];
+    var primeraFichaNueva = primeraFichaAntigua ? fichaAntiguaANueva[primeraFichaAntigua] : null;
+    if (primeraFichaAntigua) legado.fichas[primeraFichaAntigua] = { n: 2, due: '2026-08-27' };
+    var migrado = normalizarEstado(legado, true);
+    if (primera && (!migrado.srs[primera.id] || migrado.srs[primera.id].n !== 0 ||
+        migrado.practica[primera.id].aciertos !== 0 || migrado.racha.mejor !== 5 || migrado.racha.ultimo !== null)) {
+      fallos.push('normalización de estado');
+    }
+    if (!primeraFichaNueva || !migrado.fichas[primeraFichaNueva] || migrado.fichas[primeraFichaNueva].n !== 2) {
+      fallos.push('migración de fichas');
+    }
+    for (var pasada = 0; pasada < 20 && !fallos.length; pasada++) {
+      PREGUNTAS.forEach(function (p) {
+        var q = preguntaParaSesion(p);
+        casosBarajado++;
+        posiciones[q.correcta]++;
+        if (q.opciones.length !== 4 || !unicas(q.opciones) ||
+            q.opciones[q.correcta] !== p.opciones[p.correcta] ||
+            q.opciones.slice().sort().join('\u0000') !== p.opciones.slice().sort().join('\u0000')) {
+          fallos.push('barajado ' + p.id);
+        }
+      });
+    }
+    if (posiciones.some(function (n) { return n === 0; })) fallos.push('distribución del barajado');
+    for (var i = 0; i < total && !fallos.length; i++) {
+      var s = generaSerie();
+      if (s.opciones.length !== 4 || !unicas(s.opciones) || s.correcta < 0 || s.correcta > 3) fallos.push('serie ' + i);
+      var v = generaVerbal();
+      if (v.opciones.length !== 4 || !unicas(v.opciones) || v.correcta < 0 || v.correcta > 3) fallos.push('verbal ' + i);
+      var e = generaEspacial();
+      var claves = e.opcionesFig.map(claveCeldas);
+      if (claves.length !== 4 || new Set(claves).size !== 4 || e.correcta < 0 || e.correcta > 3) fallos.push('espacial ' + i);
+      var giros = e.enunciado.indexOf('180') >= 0 ? 2 : (e.enunciado.indexOf('izquierda') >= 0 ? 3 : 1);
+      var esperada = rotaN(e.figuraBase, giros);
+      if (claveCeldas(esperada) !== claveCeldas(e.opcionesFig[e.correcta])) fallos.push('rotación ' + i);
+      var orbita = transformacionesUnicas(e.figuraBase).map(claveCeldas);
+      if (claves.some(function (cl) { return orbita.indexOf(cl) < 0; })) fallos.push('distractor ' + i);
+    }
+    document.documentElement.setAttribute('data-autotest', JSON.stringify({
+      casosPorGenerador: total, casosBarajado: casosBarajado,
+      posicionesBarajado: posiciones, migraciones: Object.keys(ID_ANTIGUO_A_NUEVO).length,
+      legadosDeclarados: legadosDeclarados,
+      migracionesFichas: Object.keys(fichaAntiguaANueva).length,
+      fichasDeclaradas: Object.keys(LEGACY_FICHAS).length,
+      preguntas: PREGUNTAS.length,
+      basesEspaciales: BASES_ESPACIALES.length, fallos: fallos
+    }));
+  }, 0);
+}
+
 /* ===================== arranque ===================== */
 cargar();
+comprobarBloqueo();
 aplicarTema();
 if (window.matchMedia) {
   var mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -1738,12 +2077,19 @@ $('#btn-tema').addEventListener('click', function () {
   guardar(); aplicarTema();
 });
 $('#marca').innerHTML = logoMetro(26);
-$('#btn-atras').addEventListener('click', atras);
+$('#btn-atras').addEventListener('click', function () { atras(); });
 $('#btn-buscar').addEventListener('click', function () {
   var actual = pila[pila.length - 1];
   if (actual.fn === pBuscador) return;
   ir(pBuscador, 'Buscar');
 });
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('./sw.js').catch(function (err) {
+      console.warn('No se pudo preparar el arranque sin conexión', err);
+    });
+  });
+}
 
 pila = [{ fn: pInicio, titulo: 'Oposición Metro', args: {} }];
 pintar();

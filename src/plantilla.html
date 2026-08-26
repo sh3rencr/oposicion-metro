@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#0065b3">
 <meta name="description" content="Preparación de la oposición de Maquinista de Tracción Eléctrica de Metro de Madrid.">
 <title>Oposición Metro de Madrid — Maquinista</title>
+<link rel="canonical" href="https://oposicion-metro.pages.dev/">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="__ICONO__">
 <link rel="icon" href="__ICONO__">
@@ -51,7 +52,7 @@ button{font:inherit;color:inherit}
   background:var(--surface);border-bottom:3px solid var(--linea);
   position:sticky;top:0;z-index:30
 }
-.top .titulo{font-weight:750;font-size:1.04rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.015em}
+.top .titulo{font-weight:750;font-size:1.04rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.015em;margin:0}
 .iconbtn{
   min-width:46px;min-height:46px;display:inline-flex;align-items:center;justify-content:center;
   background:var(--surface-2);border:1px solid var(--border);border-radius:12px;cursor:pointer;font-size:1.2rem
@@ -208,7 +209,10 @@ html[data-tema="oscuro"] .hero .btn{background:#eaf4ff;color:#0b3a6b}
 @keyframes fallo{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(2px)}}
 .anim-ok{animation:acierto .34s ease}
 .anim-err{animation:fallo .38s ease}
-@media (prefers-reduced-motion:reduce){.anim-ok,.anim-err{animation:none}.btn:active,.item:active,.iconbtn:active,.estacion:active .caja{transform:none}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
+  .anim-ok,.anim-err{animation:none}.btn:active,.item:active,.iconbtn:active,.estacion:active .caja{transform:none}
+}
 
 .feedback{margin-top:16px;border-radius:var(--radius);padding:15px 16px;border:1px solid var(--border);border-left-width:5px}
 .feedback.bien{background:var(--ok-soft);border-color:var(--ok)}
@@ -223,7 +227,7 @@ html[data-tema="oscuro"] .hero .btn{background:#eaf4ff;color:#0b3a6b}
 .ficha{
   min-height:230px;display:flex;align-items:center;justify-content:center;text-align:center;
   padding:28px 22px;font-size:1.18rem;line-height:1.5;cursor:pointer;user-select:none;
-  background:var(--surface);border:2px dashed var(--border);border-radius:var(--radius);font-weight:600
+  width:100%;color:inherit;background:var(--surface);border:2px dashed var(--border);border-radius:var(--radius);font-weight:600
 }
 .ficha.girada{border-style:solid;border-color:var(--linea);background:var(--accent-soft);font-weight:500}
 .ficha-pista{text-align:center;color:var(--muted);font-size:.87rem;margin:10px 0 16px}
@@ -242,7 +246,7 @@ html[data-tema="oscuro"] .hero .btn{background:#eaf4ff;color:#0b3a6b}
 
 /* ---------- resumen de estudio ---------- */
 .md{font-size:1.05rem;line-height:1.72}
-.md h4{font-size:1.04rem;margin:1.35em 0 .4em;font-weight:800;letter-spacing:-.015em}
+.md h2{font-size:1.04rem;margin:1.35em 0 .4em;font-weight:800;letter-spacing:-.015em}
 .md ul{padding-left:1.25em;margin:0 0 1em}
 .md li{margin-bottom:.5em}
 .md li::marker{color:var(--linea)}
@@ -283,6 +287,14 @@ html[data-tema="oscuro"] .hero .btn{background:#eaf4ff;color:#0b3a6b}
 .figs{display:flex;flex-wrap:wrap;gap:11px;justify-content:center;margin:16px 0}
 .fig{background:var(--surface-2);border-radius:11px;padding:8px}
 
+/* ---------- navegación del simulacro ---------- */
+.mapa-preguntas{margin:10px 0 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:9px 12px}
+.mapa-preguntas summary{cursor:pointer;font-size:.88rem;font-weight:700;color:var(--muted);min-height:44px;display:flex;align-items:center}
+.rejilla-preguntas{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:7px;padding:7px 0 4px}
+.salto-pregunta{min-width:44px;min-height:44px;border-radius:9px;border:1px solid var(--border);background:var(--surface-2);color:var(--muted);font:700 .86rem/1 system-ui;cursor:pointer}
+.salto-pregunta.respondida{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.salto-pregunta.actual{outline:3px solid var(--accent);outline-offset:1px}
+
 .pie{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--border);padding:10px 16px calc(10px + env(safe-area-inset-bottom));z-index:20}
 .pie .wrap-pie{max-width:780px;margin:0 auto}
 .oculto{display:none !important}
@@ -294,11 +306,11 @@ html[data-tema="oscuro"] .hero .btn{background:#eaf4ff;color:#0b3a6b}
   <div class="top">
     <button class="iconbtn oculto" id="btn-atras" title="Volver" aria-label="Volver">←</button>
     <span class="marca" id="marca" aria-hidden="true"></span>
-    <div class="titulo" id="titulo-pantalla">Oposición Metro</div>
+    <h1 class="titulo" id="titulo-pantalla">Oposición Metro</h1>
     <button class="iconbtn" id="btn-buscar" title="Buscar" aria-label="Buscar">🔍</button>
     <button class="iconbtn" id="btn-tema" title="Cambiar entre modo claro y oscuro" aria-label="Cambiar modo claro u oscuro">🌙</button>
   </div>
-  <main id="app" tabindex="-1"></main>
+  <main id="app" tabindex="-1" aria-labelledby="titulo-pantalla"></main>
 </div>
 <div class="pie oculto" id="pie"><div class="wrap-pie" id="pie-contenido"></div></div>
 <script>

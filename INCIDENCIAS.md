@@ -6,8 +6,8 @@
 se agota sin llegar a establecerse. Falla igual en navegador y en `curl`.
 
 **No es la web.** Comprobado desde la red de GitHub, en el propio despliegue automático: devuelve
-**HTTP 200 y sirve las 474 preguntas**. El paso «Comprobar que la web responde» del workflow lo
-verifica en cada despliegue.
+**HTTP 200 y servía las 474 preguntas del artefacto de aquel despliegue**. El workflow compara
+en cada publicación la cantidad servida con la del artefacto que acaba de validar.
 
 **Causa.** Movistar no consigue enrutar hasta el rango de Cloudflare **188.114.96.0/20**, que es
 al que resuelve este dominio desde España. Pruebas que lo demuestran:

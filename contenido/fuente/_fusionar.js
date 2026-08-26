@@ -5,6 +5,7 @@
 'use strict';
 const fs = require('fs'), path = require('path');
 const dificultad = require('./_dificultad.js');
+const config = require('./config.js');
 const AQUI = __dirname, CONT = path.join(AQUI, '..');
 
 const pedidas = process.argv.slice(2);
@@ -12,8 +13,12 @@ const ficheros = fs.readdirSync(AQUI).filter(f => /^parte-\d+\.js$/.test(f))
   .filter(f => !pedidas.length || pedidas.includes(f.match(/\d+/)[0]))
   .sort((a, b) => (+a.match(/\d+/)[0]) - (+b.match(/\d+/)[0]));
 
-const temario = JSON.parse(fs.readFileSync(path.join(CONT, 'temario.json'), 'utf8'));
-const banco = JSON.parse(fs.readFileSync(path.join(CONT, 'preguntas.json'), 'utf8'));
+// Una fusión completa parte únicamente de las fuentes. La modalidad parcial
+// conserva las partes no solicitadas del último JSON generado.
+const temarioAnterior = pedidas.length ? JSON.parse(fs.readFileSync(path.join(CONT, 'temario.json'), 'utf8')) : { partes: [] };
+const bancoAnterior = pedidas.length ? JSON.parse(fs.readFileSync(path.join(CONT, 'preguntas.json'), 'utf8')) : { preguntas: [] };
+const temario = Object.assign({}, config.temario, { partes: temarioAnterior.partes || [] });
+const banco = Object.assign({}, config.banco, { preguntas: bancoAnterior.preguntas || [] });
 
 for (const f of ficheros) {
   const mod = require(path.join(AQUI, f));

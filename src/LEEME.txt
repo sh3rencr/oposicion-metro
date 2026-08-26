@@ -6,9 +6,10 @@ Andrei, esto es para ti. Cinco cosas y ya:
 0. Lo tienes en internet aquí, y funciona en el móvil:
    https://oposicion-metro.pages.dev
 
-1. Guárdala en la pantalla de inicio del móvil y te queda como una aplicación más.
-   Y si algún día no tienes cobertura, haz doble clic en el archivo EMPEZAR-AQUI.html:
-   es la misma aplicación, funciona sin internet.
+1. Abre siempre https://oposicion-metro.pages.dev y guárdala en la pantalla de inicio.
+   Después de abrirla una vez con conexión, también puede arrancar y funcionar sin cobertura.
+   En un ordenador también puedes usar EMPEZAR-AQUI.html con doble clic: es un único archivo
+   que no necesita internet.
 
 2. No hay que instalar nada, ni registrarse, ni pagar. Abres y estudias.
 
@@ -21,8 +22,9 @@ Andrei, esto es para ti. Cinco cosas y ya:
 
 AVISO IMPORTANTE SOBRE EL MÓVIL
 -------------------------------
-Si usas la aplicación en el ordenador Y en el móvil, cada uno lleva su propia
-cuenta por separado. Lo que estudies en uno no aparece en el otro.
+Cada aparato Y cada dirección web llevan su propia cuenta por separado. Usa normalmente
+oposicion-metro.pages.dev. Si abres la copia de GitHub, el archivo local u otro navegador,
+lo estudiado allí no aparece automáticamente en los demás.
 
 Para pasar el progreso de un aparato a otro:
   - En el aparato donde vas por delante: Copia de seguridad > "Guardar mi progreso".

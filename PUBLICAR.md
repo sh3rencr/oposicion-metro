@@ -1,24 +1,25 @@
 # Publicar la aplicación (instrucciones para ti, no para Andrei)
 
-> **PUBLICADO.** La aplicación está en línea en **<https://oposicion-metro.pages.dev/>**
-> (Cloudflare Pages, desplegada el 26 de agosto de 2026). Verificado: la versión publicada
-> coincide byte a byte con `dist/web/index.html`, el manifest y los iconos se sirven bien y la
-> app funciona desde el móvil sin errores.
+> **EN LÍNEA.** La dirección principal es **<https://oposicion-metro.pages.dev/>** y la copia
+> de emergencia es **<https://sh3rencr.github.io/oposicion-metro/>**. Los cambios locales no
+> llegan a ninguna de las dos hasta subirlos a `main` o ejecutar un despliegue manual.
 >
 > **Para actualizarla** tras cambiar contenido:
 > ```bash
-> cd ~/Code/oposicion-metro && node build.js
-> npx wrangler pages deploy dist/web --project-name=oposicion-metro
+> cd ~/Code/oposicion-metro
+> node contenido/fuente/_fusionar.js
+> node tests/psicotecnicos.test.js 300000
+> node build.js
 > ```
 
-La carpeta `dist/web/` es lo que se sube. Son **692 KB** en 6 ficheros: `index.html`,
-`manifest.json` y los tres iconos. Es un sitio estático puro: no necesita servidor de
-aplicaciones, ni base de datos, ni build en el servidor.
+La carpeta `dist/web/` es lo que se sube: `index.html`, el service worker, el manifest y los
+iconos. Es un sitio estático puro: no necesita servidor de aplicaciones ni base de datos.
 
 Antes de subir, siempre:
 
 ```bash
-cd ~/Code/oposicion-metro && node build.js
+cd ~/Code/oposicion-metro
+node contenido/fuente/_fusionar.js && node tests/psicotecnicos.test.js 300000 && node build.js
 ```
 
 ## Opción recomendada — Cloudflare Pages (gratis)
@@ -55,17 +56,9 @@ ahí, cada actualización es ese mismo comando.
 **Netlify Drop** — <https://app.netlify.com/drop>. Arrastras `dist/web` y ya. No pide ni
 cuenta para la primera subida. Es lo más rápido si solo quieres probarlo hoy.
 
-**GitHub Pages** — tiene sentido si además quieres el repo en GitHub:
-
-```bash
-cd ~/Code/oposicion-metro
-git init && git add -A && git commit -m "App de estudio para la oposición"
-gh repo create oposicion-metro --private --source=. --push
-node build.js
-git subtree push --prefix dist/web origin gh-pages
-```
-
-Y en GitHub: *Settings → Pages → Deploy from a branch → `gh-pages` / `(root)`*.
+**GitHub Pages** — ya funciona como copia de emergencia. El workflow compila una sola vez y
+publica ese mismo artefacto en GitHub y Cloudflare mediante trabajos independientes: un fallo
+de un proveedor no impide intentar el otro.
 
 > **Cuidado si haces el repo público**: los manuales de Metro llevan aviso de «prohibida la
 > reproducción». La app no reproduce su texto, pero subir `fuentes-oficiales/` sería

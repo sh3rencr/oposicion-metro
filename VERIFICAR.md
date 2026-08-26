@@ -36,12 +36,12 @@ Marca la casilla cuando lo hayas mirado.
 - [ ] **6. Si ya han publicado cuántas preguntas tiene el test y cuánto dura.**
   Las bases no lo dicen; lo publicará la consultora externa en el apartado
   "Circunstancias, requisitos y condiciones relativas a la inscripción y a la prueba".
-  En cuanto salga, cámbialo en `contenido/temario.json` → bloque `examen`, y pon
+  En cuanto salga, cámbialo en `contenido/fuente/config.js` → bloque `examen`, y pon
   `"formato_confirmado": true`. Eso quita solo los avisos de "cifra estimada".
 
 ## Sobre datos concretos de las preguntas
 
-Con 348 preguntas no puedes comprobarlas todas. Estas cuatro son las que más se repiten en el
+Con 474 preguntas no puedes comprobarlas todas. Estas cuatro son las que más se repiten en el
 temario, las más fáciles de transcribir mal y las que más cuesta desaprender si se memorizan
 con un error.
 

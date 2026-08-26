@@ -128,16 +128,17 @@ q('6.4', 2, 'El Reglamento de los Servicios de Prevención de 1997 detalla, entr
 tema('6.5', 'Derechos de los trabajadores y su representación',
 '**Los derechos del trabajador** en prevención, además de la protección adecuada de su salud y seguridad:\n\n- **Recibir información y cursos de formación** sobre prevención de riesgos laborales.\n- **Parar en el trabajo** cuando hay una **situación de peligro importante y que puede ocurrir en cualquier momento**.\n- **Opinar y participar** en temas de prevención. El empresario **debe pedir la opinión de los trabajadores con tiempo** para tomar decisiones de prevención.\n- **Tener controles médicos** para ver su salud relacionada con el trabajo.\n\n**Las dos formas de representación** que prevé la Ley:\n\n**1. Los delegados de prevención.** Representan a los trabajadores en los temas de prevención. **Son personas que ya son representantes de los trabajadores** en la empresa y se encargan de esos temas de forma concreta.\n\n- En empresas de **hasta 30 trabajadores** hay **un solo representante**, el **delegado de personal**, que **será también el delegado de prevención**.\n- En empresas de **más de 30 trabajadores** hay varios delegados de personal, y **ellos deciden entre sí quién será el delegado de prevención**.\n- El número de delegados de prevención **crece con el tamaño** de la empresa. Ejemplos del manual: **entre 50 y 100 trabajadores → 2 delegados**; **entre 1.000 y 2.000 → 5 delegados**; **más de 4.000 → 8 delegados**.\n\n**Tareas principales de los delegados de prevención:**\n\n- **Colaborar** con la empresa para mejorar las actividades de prevención y **proponer medidas**.\n- **Ayudar** a que los trabajadores cumplan las normas.\n- **Opinar** sobre decisiones que le proponga el empresario, como las actividades de prevención o el nombramiento de encargados de las medidas de emergencia.\n- **Vigilar** que todos cumplan las normas.\n\nUn delegado de prevención **puede proponer que una parte del trabajo pare** cuando hay peligro grave que puede ocurrir en cualquier momento y en un tiempo corto. Debe **escribir un informe** explicando por qué. El **empresario puede rechazar la propuesta, pero tiene que decir los motivos**.\n\n**2. El Comité de Seguridad y Salud.** Se reúnen **en un mismo número** los representantes de los trabajadores y del empresario. Es **obligatorio en empresas de más de 50 trabajadores**.\n\nSus **dos tareas principales**:\n\n- **Participar** en la creación de los planes de prevención, **ponerlos en marcha** y **revisar su funcionamiento** cada cierto tiempo.\n- **Proponer** a la empresa una mejora de las condiciones o la **corrección de fallos**.',
 [
- { anverso: '¿A partir de cuántos trabajadores es obligatorio el Comité de Seguridad y Salud?', reverso: 'En empresas de más de 50 trabajadores. Se compone a partes iguales de representantes de los trabajadores y del empresario.' },
+ { anverso: '¿A partir de cuántos trabajadores es obligatorio el Comité de Seguridad y Salud?', reverso: 'El manual dice más de 50. La Ley 31/1995 vigente dice 50 o más. Se compone a partes iguales de representantes de los trabajadores y del empresario.' },
  { anverso: 'En una empresa de hasta 30 trabajadores, ¿quién es el delegado de prevención?', reverso: 'El delegado de personal, que es el único representante de los trabajadores.' },
  { anverso: '¿Cuántos delegados de prevención tiene una empresa de entre 50 y 100 trabajadores?', reverso: 'Dos.' },
  { anverso: '¿Puede un delegado de prevención parar el trabajo?', reverso: 'Puede proponer que una parte pare ante peligro grave e inminente, mediante informe escrito. El empresario puede rechazarlo, pero motivándolo.' },
  { anverso: '¿Cuáles son las dos tareas principales del Comité de Seguridad y Salud?', reverso: 'Participar en los planes de prevención, ponerlos en marcha y revisarlos; y proponer mejoras o la corrección de fallos.' }
-], [21, 22, 23]);
+], [21, 22, 23], null,
+'Diferencia importante: el manual de Metro dice «más de 50 trabajadores», pero el artículo 38 de la Ley 31/1995 vigente dice «50 o más». En una pregunta literal del manual se conserva su redacción; para aplicar la norma, una empresa con exactamente 50 ya debe constituir el Comité.');
 
 q('6.5', 2, 'El Comité de Seguridad y Salud es obligatorio en las empresas de:',
   ['Más de 50 trabajadores', 'Más de 30 trabajadores', 'Más de 100 trabajadores', 'Más de 250 trabajadores'], 0,
-  'El umbral son 50 trabajadores. Los 30 trabajadores son el límite que separa al delegado de personal único, que es a la vez delegado de prevención, de las empresas con varios delegados de personal.', 23);
+  'El manual de Metro responde «más de 50». Atención: el artículo 38 de la Ley 31/1995 vigente establece «50 o más», por lo que una empresa con exactamente 50 sí debe constituirlo. Se conserva la respuesta literal del manual y se deja visible la diferencia normativa.', 23);
 
 q('6.5', 3, 'En una empresa de hasta 30 trabajadores, el delegado de prevención:',
   ['Es el delegado de personal, que es el único representante de los trabajadores',
@@ -188,8 +189,9 @@ q('6.6', 2, 'Respecto a los dispositivos de seguridad de máquinas, equipos y ve
 
 q('6.6', 3, 'El alcance de las obligaciones del trabajador en prevención depende de:',
   ['La formación que tenga en estos temas y de las instrucciones que le dé el empresario',
-   'Su antigüedad en la empresa', 'El convenio colectivo aplicable',
-   'El tamaño de la empresa'], 0,
+   'Su antigüedad en la empresa y el tiempo que lleve desempeñando ese puesto de trabajo',
+   'El convenio colectivo aplicable y la categoría profesional reconocida al trabajador',
+   'El tamaño de la empresa y el número total de trabajadores expuestos al mismo riesgo'], 0,
   'El manual condiciona expresamente el deber del trabajador a su formación y a las instrucciones recibidas. Es coherente con que la formación e información sean, a su vez, un derecho del trabajador y una obligación del empresario.', 24);
 
 tema('6.7', 'Organismos públicos de seguridad y salud en el trabajo',
@@ -567,10 +569,11 @@ tema('6.17', 'El plan de prevención, la evaluación y la planificación',
  { anverso: '¿Qué dos tareas principales sirven para aplicar el plan de prevención?', reverso: 'La evaluación de riesgos y la planificación de la actividad preventiva.' },
  { anverso: '¿Qué riesgos estudia la evaluación de riesgos?', reverso: 'Los que no han podido evitarse y los que aún existen en el trabajo.' },
  { anverso: '¿Qué ocurre si en un puesto ya evaluado un trabajador sufre un accidente?', reverso: 'Hay que volver a hacer la evaluación.' },
- { anverso: '¿En qué empresas puede el plan de prevención ser más sencillo?', reverso: 'En las de menos de 50 trabajadores, adaptado a su actividad y tamaño.' },
+ { anverso: '¿En qué empresas puede el plan de prevención ser más sencillo?', reverso: 'El manual dice menos de 50. El RD 39/1997 vigente permite hasta 50, si la empresa no realiza actividades del anexo I.' },
  { anverso: '¿Qué debe incluir el plan de acción de la planificación preventiva?', reverso: 'Qué personas se encargan, qué medios se usan, cuánto dinero hay disponible y la prioridad de las acciones.' },
  { anverso: '¿Quiénes son trabajadores especialmente sensibles?', reverso: 'Por ejemplo, menores de edad, mujeres embarazadas y personas con discapacidad.' }
-], [192, 193, 194, 195, 196]);
+], [192, 193, 194, 195, 196], null,
+'Diferencia importante: el manual de Metro dice «menos de 50 trabajadores». El artículo 2.4 del RD 39/1997 vigente permite simplificar el plan en empresas de hasta 50 trabajadores y añade que no deben desarrollar actividades del anexo I. En preguntas literales se conserva la redacción del manual.');
 
 q('6.17', 2, 'La evaluación de riesgos laborales estudia y valora:',
   ['Los riesgos que no han podido evitarse y los que aún existen en el trabajo',
@@ -591,7 +594,7 @@ q('6.17', 3, 'En el resultado de la evaluación de riesgos, el nivel de riesgo s
 
 q('6.17', 2, 'El plan de prevención puede ser más sencillo en las empresas de:',
   ['Menos de 50 trabajadores', 'Menos de 10 trabajadores', 'Menos de 25 trabajadores', 'Menos de 250 trabajadores'], 0,
-  'El umbral son 50 trabajadores. Coincide con el umbral a partir del cual es obligatorio el Comité de Seguridad y Salud, lo que ayuda a recordarlo.', 193);
+  'El manual de Metro responde «menos de 50». El artículo 2.4 del RD 39/1997 vigente permite la simplificación hasta 50 trabajadores, siempre que la empresa no realice actividades del anexo I. Se conserva la respuesta literal del manual y se señala la diferencia normativa.', 193);
 
 q('6.17', 3, 'Las instrucciones de trabajo y la señalización de prevención son ejemplos de:',
   ['Tareas preventivas de formación e información', 'Medidas materiales',

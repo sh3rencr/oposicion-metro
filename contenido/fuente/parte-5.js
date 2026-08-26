@@ -197,7 +197,9 @@ q('5.7', 3, 'Un empleado recibe de su superior jerárquico una orden manifiestam
 
 q('5.7', 2, 'Las dudas sobre la interpretación o aplicación del Código Ético se consultan con:',
   ['El responsable directo o, si las circunstancias lo requieren, con el Área de Cumplimiento Normativo y Transparencia',
-   'La División de Recursos Humanos', 'El Comité de Dirección', 'La representación sindical'], 0,
+   'La División de Recursos Humanos o, si la duda persiste, con la representación sindical',
+   'El Comité de Dirección, que emite una interpretación vinculante para toda la plantilla',
+   'La representación sindical o el comité de empresa de la dependencia correspondiente'], 0,
   'El artículo 24.4 fija esos dos interlocutores, en ese orden. La División de Recursos Humanos aparece en el Código, pero en el artículo 19, para comunicar relaciones personales que puedan interferir en procesos de selección.', 12);
 
 q('5.7', 3, 'El Código Ético queda publicado en:',

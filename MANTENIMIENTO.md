@@ -20,7 +20,10 @@ Genera:
 
 ```
 contenido/fuente/
-├── _util.js       ← helpers compartidos (tema, q, numeración de ids)
+├── config.js      ← nombre de usuario, revisión y formato del examen
+├── legacy-ids.json ← mapa congelado para migrar el progreso de la versión antigua
+├── legacy-fichas.json ← el mismo mapa congelado para las fichas antiguas
+├── _util.js       ← helpers compartidos (tema, q, ids estables)
 ├── parte-1.js  …  parte-7.js
 └── _fusionar.js   ← funde las partes en temario.json y preguntas.json
 ```
@@ -30,21 +33,33 @@ Para tocar contenido, edita el `parte-N.js` correspondiente y ejecuta:
 ```bash
 node contenido/fuente/_fusionar.js      # todas las partes
 node contenido/fuente/_fusionar.js 3    # solo la parte 3
+node tests/psicotecnicos.test.js 300000 # 900.000 ejercicios generados
+node tests/migraciones.test.js           # ids antiguos y posiciones de respuesta
 node build.js
 ```
 
-Los ids de pregunta son `p-<epígrafe>-<nn>` y se numeran por orden dentro de cada epígrafe.
-**Añade siempre al final del epígrafe**: si insertas una pregunta en medio, se renumeran las
-siguientes y Andrei pierde el progreso de repaso espaciado de esas preguntas.
+Los ids se generan de forma estable a partir del epígrafe y el enunciado. Insertar una pregunta
+en medio ya no renumera las siguientes. `legacy-ids.json` congela los identificadores posicionales
+de la primera versión para migrar el progreso existente: no asignes uno a preguntas nuevas ni
+recalcules ese fichero por orden. `legacy-fichas.json` cumple la misma función para las fichas.
 
-## Cómo añadir preguntas a mano
+Si vas a cambiar de forma importante el enunciado de una pregunta ya publicada, pasa
+`{ id: 'su-id-actual' }` como último argumento de `q(...)`. Así la corrección editorial tampoco
+creará una tarjeta nueva en el repaso espaciado.
 
-También puedes editar `contenido/preguntas.json` directamente, pero se sobrescribirá la próxima
-vez que ejecutes el fusionador. Para cambios que quieras conservar, usa los ficheros de parte.
+Si cambias el anverso de una ficha publicada, añade a su objeto `id: 'xxxxxxxx'`, usando los
+ocho caracteres que aparecen después de `#f-` en `legacy-fichas.json`. El reverso puede editarse
+sin hacer nada especial.
+
+## Cómo añadir preguntas
+
+Edita siempre el `contenido/fuente/parte-N.js` correspondiente. Los JSON se sobrescriben la
+próxima vez que se ejecuta el fusionador y no son una fuente editable.
 
 ```json
 {
-  "id": "p-013",
+  "id": "p-2.4-a1b2c3d4",
+  "legacy_id": "p-2.4-03",
   "epigrafe": "1.2",
   "dificultad": 2,
   "enunciado": "…",
@@ -64,12 +79,12 @@ si el `id` está repetido, o si algo marcado `volatil` no lleva `fecha_dato`.
 
 ## Cómo añadir temas
 
-Edita `contenido/temario.json`. Cada epígrafe necesita `id`, `titulo`, `resumen_md`,
-`fichas` y `fuentes` (obligatorio).
+Edita el `contenido/fuente/parte-N.js` correspondiente. Cada epígrafe necesita `id`, `titulo`,
+`resumen_md`, `fichas` y `fuentes` (obligatorio).
 
 ## Cómo cambiar el formato del simulacro
 
-En `contenido/temario.json`, bloque `examen`. Cuando Metro publique el número real de
+En `contenido/fuente/config.js`, bloque `examen`. Cuando Metro publique el número real de
 preguntas y la duración, cámbialos ahí y pon `"formato_confirmado": true`: eso quita
 automáticamente los avisos de "cifra estimada" de toda la app.
 
@@ -80,9 +95,11 @@ oposicion-metro/
 ├── build.js              ← el único script; genera dist/
 ├── src/
 │   ├── plantilla.html    ← HTML + CSS
-│   ├── app.js            ← toda la lógica
+│   ├── app.js            ← interfaz, progreso y sesiones
+│   ├── psicotecnicos.js  ← generadores puros y comprobables con Node
 │   └── LEEME.txt         ← lo que él lee
 ├── contenido/            ← los datos; es lo único que hay que tocar para añadir temario
+│   ├── fuente/           ← fuentes editables y configuración
 │   ├── temario.json
 │   ├── preguntas.json
 │   └── FUENTES.md        ← mapa de fuentes y lagunas conocidas

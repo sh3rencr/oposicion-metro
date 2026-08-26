@@ -59,8 +59,9 @@ q('3.2', 3, 'Las funciones de circulación que afecten a la seguridad:',
 
 q('3.2', 2, 'El mando funcional y jerárquico del PCC alcanza:',
   ['A todos los trabajadores con responsabilidad en la circulación y a los equipos de mantenimiento en lo relativo a la circulación',
-   'Solo a los conductores de trenes', 'Solo al personal de estaciones y depósitos',
-   'A toda la plantilla de Metro de Madrid'], 0,
+   'Solo a los conductores de trenes que se encuentren circulando por vías principales',
+   'Solo al personal de estaciones y depósitos que intervenga directamente en maniobras',
+   'A toda la plantilla de Metro de Madrid, incluso en materias que no guardan relación con la circulación'], 0,
   'El artículo 2.1.1 incluye expresamente a los equipos de mantenimiento de material móvil e instalaciones, pero solo «en todo lo relativo a la circulación». No es un mando general sobre toda la plantilla.', 27);
 
 tema('3.3', 'Transmisión de órdenes y actitud durante el servicio',
@@ -191,8 +192,9 @@ tema('3.6', 'Aspectos de las señales ferroviarias',
 
 q('3.6', 3, 'El aspecto morado o azul de una señal ferroviaria:',
   ['Autoriza el rebase con precaución en conducción marcha a la vista, por entrada a una zona sin señalización o con posibles obstáculos',
-   'Indica parada absoluta', 'Indica vía libre sin restricciones',
-   'Anuncia que la próxima señal está en rojo'], 0,
+   'Indica parada absoluta y prohíbe rebasar la señal sin autorización expresa del PCC',
+   'Indica vía libre y permite continuar sin restricciones especiales de conducción',
+   'Anuncia que la próxima señal está en rojo y obliga a prepararse para detener el tren'], 0,
   'El morado es el único aspecto que impone circular en marcha a la vista, precisamente porque se entra en zonas sin señalización o donde puede haber parachoques o trenes estacionados. El anuncio de parada por próxima señal en rojo es el amarillo.', 42);
 
 q('3.6', 2, '¿Cuáles de estos aspectos indican vía libre?',
@@ -547,7 +549,9 @@ q('3.15', 3, 'Si al solicitar la localización de un tren hay contradicción ent
 
 q('3.15', 3, 'Salvo indicación en contra, la circulación con Boletín de doble precaución se realiza:',
   ['En marcha a la vista en todo el recorrido autorizado, con especial atención a agujas y calzos',
-   'A paso de hombre en todo el recorrido', 'En modo M+20', 'A un máximo de 30 km/h'], 0,
+   'A paso de hombre durante todo el recorrido autorizado, sin atender al aspecto de las señales',
+   'En modo M+20 durante todo el recorrido, respetando únicamente la protección automática',
+   'A un máximo de 30 km/h, reduciendo a paso de hombre solo al atravesar agujas y calzos'], 0,
   'Marcha a la vista, y con una cautela añadida: comprobar que la posición de agujas y calzos se corresponde con el itinerario que se está realizando, ya que no se está respetando el aspecto de las señales.', 99);
 
 q('3.15', 3, 'En una concesión de vía mixta, en el Boletín de doble precaución figurará como estación que concede:',
@@ -661,8 +665,9 @@ q('3.18', 2, 'El cruce con un tren detenido en la vía contraria se realiza:',
 
 q('3.18', 3, 'Sin comunicación con el PCC, un conductor puede decidir evacuar su tren por la plataforma de vía:',
   ['Si ha transcurrido un tiempo excesivo o existe riesgo para los viajeros, tras comprobar la detención del tren de la otra vía',
-   'En cuanto lo soliciten los viajeros', 'Nunca sin autorización expresa del PCC',
-   'Solo si el tren ha sufrido un incendio'], 0,
+   'En cuanto lo soliciten los viajeros, aunque no haya comprobado el estado de la vía contraria',
+   'Nunca sin autorización expresa del PCC, aunque exista un riesgo inmediato para los viajeros',
+   'Solo si el tren ha sufrido un incendio y la evacuación puede hacerse por el andén más próximo'], 0,
   'Esos son los dos motivos que recoge el artículo, y la comprobación de que el tren de la otra vía está detenido es requisito previo. La evacuación se dirige conforme al Plan de Autoprotección, informando al PCC en cuanto sea posible.', 128);
 
 q('3.18', 2, 'Ante un desacople en marcha sin comunicación con el PCC, el conductor:',
@@ -728,8 +733,9 @@ q('3.20', 2, 'La obligación de prestar ayuda ante un accidente presenciado alca
 
 q('3.20', 3, 'Al avisar de una situación de riesgo para la circulación, el trabajador debe indicar:',
   ['El lugar, los auxilios necesarios, si debe interrumpirse la circulación y las precauciones a observar',
-   'Únicamente el punto kilométrico exacto', 'Solo el número de tren afectado',
-   'Su nombre y categoría profesional'], 0,
+   'Únicamente el punto kilométrico exacto y la identidad del trabajador que realiza el aviso',
+   'Solo el número del tren afectado y si sus viajeros necesitan asistencia sanitaria',
+   'Su nombre, su categoría profesional y el departamento de Metro al que pertenece'], 0,
   'El artículo 5.2.2 enumera esos cuatro elementos, e incluye expresamente el juicio del propio trabajador sobre las precauciones necesarias. Además debe tomar medidas a su alcance y detener a los trenes que puedan llegar a la zona.', 133);
 
 q('3.20', 3, 'Un viajero se indispone dentro de un tren en marcha. El conductor:',
@@ -782,8 +788,9 @@ q('3.21', 2, 'Si un conductor sospecha que se ha producido un arrollamiento, aun
 
 q('3.21', 3, 'Ante un descarrilamiento sin comunicación con el PCC, el conductor debe además:',
   ['Realizar señales luminosas con la linterna del tren u otro medio para detener al tren de la vía contraria',
-   'Bajar a la vía a colocar una baliza roja', 'Evacuar de inmediato a los viajeros',
-   'Intentar reencarrilar el tren'], 0,
+   'Bajar a la plataforma de vía para colocar una baliza roja a la distancia reglamentaria',
+   'Evacuar inmediatamente a todos los viajeros, aunque no haya comprobado si existen heridos',
+   'Intentar reencarrilar el tren con los medios disponibles antes de proteger la vía contraria'], 0,
   'La secuencia es detener, encender pilotos en cabeza y avisar; si no hay comunicación, señales luminosas hacia la vía contraria. Después revisa si hay viajeros accidentados y si ocupa gálibo de la otra vía.', 135);
 
 module.exports = {

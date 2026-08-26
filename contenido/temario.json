@@ -1,13 +1,13 @@
 {
-  "_comentario": "Estructura de datos de la app. Para añadir contenido, añade objetos a 'partes' y a 'epigrafes'. No hace falta tocar el código de la app: basta con volver a ejecutar 'node build.js'.",
-  "_comentario_usuario": "Cambia 'usuario.nombre' para personalizar los saludos de la app. Déjalo vacío ('') para que no salude por el nombre.",
-  "version_contenido": "0.1-esqueleto",
-  "fecha_revision": "2026-08-26",
+  "_comentario": "Estructura de datos generada. Edita contenido/fuente/config.js y parte-1.js … parte-7.js, y ejecuta _fusionar.js.",
+  "_comentario_usuario": "Cambia usuario.nombre para personalizar los saludos. Déjalo vacío para no usar nombre.",
+  "version_contenido": "0.2.0",
+  "fecha_revision": "2026-08-27",
   "usuario": {
     "nombre": "Andrei"
   },
   "examen": {
-    "_comentario": "Las bases de 2026 NO fijan número de preguntas ni duración. Estos valores son una estimación basada en convocatorias anteriores. Cámbialos aquí cuando Metro publique el formato real y vuelve a ejecutar build.js.",
+    "_comentario": "Las bases de 2026 NO fijan número de preguntas ni duración. Son una estimación basada en convocatorias anteriores; actualízalos aquí cuando Metro publique el formato real.",
     "preguntas_simulacro": 80,
     "minutos_simulacro": 90,
     "umbral_aprobado_porcentaje": 50,
@@ -2668,7 +2668,7 @@
           "fichas": [
             {
               "anverso": "¿A partir de cuántos trabajadores es obligatorio el Comité de Seguridad y Salud?",
-              "reverso": "En empresas de más de 50 trabajadores. Se compone a partes iguales de representantes de los trabajadores y del empresario."
+              "reverso": "El manual dice más de 50. La Ley 31/1995 vigente dice 50 o más. Se compone a partes iguales de representantes de los trabajadores y del empresario."
             },
             {
               "anverso": "En una empresa de hasta 30 trabajadores, ¿quién es el delegado de prevención?",
@@ -2691,7 +2691,8 @@
             "https://www.metromadrid.es/sites/default/files/empleo/descargables/6.Manual_PRL.pdf#page=21",
             "https://www.metromadrid.es/sites/default/files/empleo/descargables/6.Manual_PRL.pdf#page=22",
             "https://www.metromadrid.es/sites/default/files/empleo/descargables/6.Manual_PRL.pdf#page=23"
-          ]
+          ],
+          "nota_normativa": "Diferencia importante: el manual de Metro dice «más de 50 trabajadores», pero el artículo 38 de la Ley 31/1995 vigente dice «50 o más». En una pregunta literal del manual se conserva su redacción; para aplicar la norma, una empresa con exactamente 50 ya debe constituir el Comité."
         },
         {
           "id": "6.6",
@@ -3107,7 +3108,7 @@
             },
             {
               "anverso": "¿En qué empresas puede el plan de prevención ser más sencillo?",
-              "reverso": "En las de menos de 50 trabajadores, adaptado a su actividad y tamaño."
+              "reverso": "El manual dice menos de 50. El RD 39/1997 vigente permite hasta 50, si la empresa no realiza actividades del anexo I."
             },
             {
               "anverso": "¿Qué debe incluir el plan de acción de la planificación preventiva?",
@@ -3124,7 +3125,8 @@
             "https://www.metromadrid.es/sites/default/files/empleo/descargables/6.Manual_PRL.pdf#page=194",
             "https://www.metromadrid.es/sites/default/files/empleo/descargables/6.Manual_PRL.pdf#page=195",
             "https://www.metromadrid.es/sites/default/files/empleo/descargables/6.Manual_PRL.pdf#page=196"
-          ]
+          ],
+          "nota_normativa": "Diferencia importante: el manual de Metro dice «menos de 50 trabajadores». El artículo 2.4 del RD 39/1997 vigente permite simplificar el plan en empresas de hasta 50 trabajadores y añade que no deben desarrollar actividades del anexo I. En preguntas literales se conserva la redacción del manual."
         },
         {
           "id": "6.18",

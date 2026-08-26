@@ -109,12 +109,27 @@ de respuestas** en la pregunta 11 (sobre elección de EPI), donde da por falsa l
 "elegirlo según el riesgo del que debe proteger". **No se ha construido ninguna pregunta sobre
 ninguno de los dos puntos.**
 
+### Límites de 50 trabajadores: manual frente a norma vigente
+
+El manual 6 utiliza **«más de 50»** para constituir el Comité de Seguridad y Salud y **«menos
+de 50»** para simplificar el plan de prevención. Las normas consolidadas usan otros límites:
+
+- La [Ley 31/1995, artículo 38](https://www.boe.es/buscar/doc.php?id=BOE-A-1995-24292),
+  exige Comité en empresas de **50 o más** trabajadores.
+- El [RD 39/1997, artículo 2.4](https://www.boe.es/eli/es/rd/1997/01/17/39/con/20240911),
+  permite simplificar el plan **hasta 50** trabajadores si la empresa no realiza actividades
+  del anexo I.
+
+La aplicación conserva la respuesta literal cuando pregunta por el manual y muestra la
+diferencia normativa en el tema, la ficha y la explicación.
+
 ## 4. Datos volátiles marcados en la app
 
-Siete preguntas llevan `volatil: true` y muestran aviso en pantalla: número de líneas de la red,
-número de depósitos y cocheras, precio de las tarjetas personal y MULTI, gratuidad del abono
-Joven 7-14, cuantía del recargo extraordinario del Reglamento de Viajeros, y horizonte del Plan
-Estratégico de Movilidad Sostenible (2013-2025, que puede haber expirado).
+Trece preguntas llevan `volatil: true` y muestran aviso en pantalla: número de líneas,
+depósitos y cocheras; precio de las tarjetas personal y MULTI; gratuidad del abono Joven 7-14;
+longitud, estaciones, coches, teleindicadores, ascensores, plantilla y viajeros de la red;
+cuantía del recargo extraordinario del Reglamento de Viajeros; y horizonte del Plan Estratégico
+de Movilidad Sostenible (2013-2025, que puede haber expirado).
 
 ## 5. Nota de derechos de autor
 

@@ -7,14 +7,16 @@ Sector** de Metro de Madrid (BOCM núm. 187, de 7 de agosto de 2026, 30 plazas).
 
 | Dirección | Servida desde |
 |---|---|
-| <https://sh3rencr.github.io/oposicion-metro/> | GitHub |
-| <https://oposicion-metro.pages.dev> | Cloudflare |
+| <https://oposicion-metro.pages.dev> | Cloudflare · dirección principal |
+| <https://sh3rencr.github.io/oposicion-metro/> | GitHub · copia de emergencia |
 
 Se publica en ambos en cada despliegue. Están en redes distintas a propósito: si un operador
 no enruta hacia una, la otra sigue accesible (ver [INCIDENCIAS.md](INCIDENCIAS.md)).
 
-Un solo fichero HTML autocontenido: sin dependencias, sin CDN, sin servidor. Funciona abierto
-desde el disco y sin conexión. El progreso se guarda en el navegador.
+Un solo fichero HTML local autocontenido: sin dependencias, sin CDN y sin servidor. Funciona
+abierto desde el disco. La versión web añade un service worker generado para poder arrancar en
+frío sin conexión después de la primera visita. El progreso se guarda en el navegador y queda
+separado por dispositivo, navegador y dirección web; por eso Cloudflare es la URL canónica.
 
 ## Qué contiene
 
@@ -33,13 +35,19 @@ algoritmo (series, verbal y espacial), progreso por partes, copia de seguridad y
 ## Cómo se trabaja
 
 ```bash
-node build.js                          # valida el contenido y genera dist/
 node contenido/fuente/_fusionar.js     # refunde los ficheros de parte en los JSON
+node tests/psicotecnicos.test.js 300000 # genera 900.000 ejercicios y comprueba sus soluciones
+node tests/migraciones.test.js           # protege el progreso antiguo y el reparto de respuestas
+node build.js                          # valida el contenido y genera dist/
 ```
 
 `build.js` **se niega a compilar** si una pregunta no tiene fuente, si el epígrafe no existe, si
 no hay cuatro opciones distintas, si un id está repetido o si algo marcado como volátil no lleva
 fecha. Esa validación es también la que corta el despliegue automático.
+
+El despliegue ejecuta además el motor psicotécnico como módulo puro y una autoprueba en Chrome
+del HTML ya construido. Cloudflare y GitHub publican desde el mismo artefacto validado y uno puede
+terminar aunque el otro proveedor falle.
 
 ### Dónde vive el contenido
 

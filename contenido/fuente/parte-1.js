@@ -2,20 +2,32 @@
    Fuente única: Manual 1 del temario oficial (julio 2026). */
 'use strict';
 const M = 'https://www.metromadrid.es/sites/default/files/empleo/descargables/1._Conocimientos_espec%C3%ADficos_sobre_Metro_de_Madrid.pdf';
+const legacyPorId = require('./legacy-ids.json');
 const url = p => M + '#page=' + p;
 const txt = p => 'Manual 1 · Conocimientos específicos · pág. ' + p;
 
-const cuenta = {};
+function hash(texto) {
+  let h = 2166136261;
+  for (let i = 0; i < texto.length; i++) {
+    h ^= texto.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ('00000000' + (h >>> 0).toString(16)).slice(-8);
+}
 function q(ep, dif, enunciado, opciones, correcta, explicacion, pag, extra) {
   extra = extra || {};
-  cuenta[ep] = (cuenta[ep] || 0) + 1;
-  return {
-    id: 'p-' + ep + '-' + String(cuenta[ep]).padStart(2, '0'),
-    epigrafe: ep, dificultad: dif, enunciado: enunciado, opciones: opciones,
-    correcta: correcta, explicacion: explicacion,
+  const id = extra.id || 'p-' + ep + '-' + hash(ep + '\n' + enunciado);
+  const giro = parseInt(hash(id + '\nopciones'), 16) % opciones.length;
+  const opcionesOrdenadas = opciones.slice(giro).concat(opciones.slice(0, giro));
+  const pregunta = {
+    id,
+    epigrafe: ep, dificultad: dif, enunciado: enunciado, opciones: opcionesOrdenadas,
+    correcta: (correcta - giro + opciones.length) % opciones.length, explicacion: explicacion,
     fuente: url(pag), fuente_texto: txt(pag) + (extra.pag2 ? '-' + extra.pag2 : ''),
     volatil: !!extra.volatil, fecha_dato: extra.fecha || '2026-07'
   };
+  if (legacyPorId[id]) pregunta.legacy_id = legacyPorId[id];
+  return pregunta;
 }
 
 const epigrafes = [];
@@ -863,8 +875,10 @@ preguntas.push(
    'La personal cuesta 4 euros y cada usuario puede tener una única tarjeta. Los 2,50 euros corresponden a la tarjeta anónima MULTI, y los 6 euros a las reediciones de la Tarjeta Infantil por causas imputables al usuario.', 84, { volatil: true }),
 
  q('1.21', 3, 'Si la primera carga de una tarjeta MULTI es un título turístico, el precio de la tarjeta será de:',
-   ['0 euros, porque va incluido en el precio del título turístico', '2,50 euros, como siempre',
-    '4 euros', '1,50 euros'], 0,
+   ['0 euros, porque va incluido en el precio del título turístico',
+    '2,50 euros, porque la tarjeta MULTI se cobra aunque la primera carga sea turística',
+    '4 euros, porque se aplica el precio de una tarjeta personal nueva',
+    '1,50 euros, porque el título turístico solo bonifica una parte del soporte'], 0,
    'El manual precisa que cuando la primera carga es un título turístico, el importe de la tarjeta queda incluido en el precio de venta del propio título, de modo que el coste de la tarjeta es cero.', 86, { volatil: true }),
 
  q('1.21', 3, 'Los descuentos por familia numerosa de categoría especial y por discapacidad igual o superior al 65 % son, respectivamente:',

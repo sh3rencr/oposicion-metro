@@ -31,8 +31,9 @@ q('2.1', 3, 'Un trabajo urgente que no figura en el documento de programación:'
 
 q('2.1', 3, 'Se admite la programación simultánea de trabajos en la plataforma de vía y circulación de trenes en la misma área de trabajo:',
   ['Solo si es para trabajar conjuntamente, cuando esté prevista una falta total de los sistemas de comunicación con el PCC',
-   'Siempre que el PCC lo autorice expresamente', 'Nunca, bajo ninguna circunstancia',
-   'Solo durante el periodo de servicio'], 0,
+   'Siempre que el PCC lo autorice expresamente, aunque los trabajos y los trenes actúen por separado',
+   'Nunca, ni siquiera cuando el tren y el personal tengan que trabajar conjuntamente',
+   'Solo durante el periodo de servicio, cuando la circulación se encuentra regulada por señales'], 0,
   'La Norma prohíbe esa simultaneidad con una excepción muy concreta: que sea para trabajar conjuntamente y esté prevista una falta total de funcionamiento de todos los sistemas de comunicación que impida contactar con el PCC.', 12);
 
 tema('2.2', 'Áreas, zonas y periodos: las definiciones que hay que distinguir',
@@ -255,8 +256,9 @@ q('2.7', 3, 'Una vez comunicado por el PCC el comienzo del periodo fuera de serv
 
 q('2.7', 3, 'Durante el periodo fuera de servicio, cada cambio de sentido de marcha dentro del tramo autorizado deberá ser autorizado por el PCC:',
   ['Si como consecuencia el tren tuviera que entrar en un área de seguridad o en un área de trabajo distinta de la que está',
-   'En todos los casos, sin excepción', 'Solo si el tren circula a contravía',
-   'Solo si el tren transporta trabajadores'], 0,
+   'En todos los casos, aunque permanezca dentro de la misma área de trabajo ya autorizada',
+   'Solo si el nuevo sentido obliga al tren a circular a contravía dentro del tramo',
+   'Solo si el tren transporta trabajadores y cambia el sentido dentro del área autorizada'], 0,
   'La condición que activa la necesidad de nueva autorización es entrar en un área de seguridad o en un área de trabajo distinta. Los movimientos en ambos sentidos dentro de la misma área ya están cubiertos por la autorización previa.', 34);
 
 q('2.7', 2, 'Ante un farol de indicación de parada en piñón por trabajos en la franja de borde de andén, el conductor:',
@@ -600,8 +602,9 @@ q('2.16', 2, 'Un desperfecto causado en las instalaciones como consecuencia de u
 
 q('2.16', 3, 'Estas Normas resultan de aplicación a las empresas contratistas y a los trabajadores autónomos que operan en la Red:',
   ['En cumplimiento de la obligación de coordinación de actividades empresariales de la normativa de prevención de riesgos laborales',
-   'Solo si así se pacta expresamente en el contrato',
-   'Solo durante el periodo fuera de servicio', 'En ningún caso: son normas internas de Metro'], 0,
+   'Solo si la obligación se incorpora expresamente como una cláusula de su contrato con Metro',
+   'Solo durante el periodo fuera de servicio, cuando acceden a la plataforma de vía',
+   'En ningún caso, porque las normas internas de Metro solo vinculan a su propia plantilla'], 0,
   'El fundamento es la coordinación de actividades empresariales prevista en la normativa de prevención. Además, las contratistas y subcontratistas deben garantizar que sus trabajadores han sido informados y conocen suficientemente estas Normas.', 69, { pag2: 70 });
 
 module.exports = {
