@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0065b3">
+<meta name="description" content="Preparación de la oposición de Maquinista de Tracción Eléctrica de Metro de Madrid.">
+<title>Oposición Metro de Madrid — Maquinista</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="__ICONO__">
+<link rel="icon" href="__ICONO__">
+<style>
+/* =====================================================================
+   Lenguaje visual: señalética de metro.
+   Numeración en círculo, líneas de color, diagramas de estaciones.
+   ===================================================================== */
+:root{
+  --bg:#eef1f6; --surface:#ffffff; --surface-2:#e7ebf2; --text:#0f1319; --muted:#5a6376;
+  --border:#d7dde7; --accent:#0065b3; --accent-2:#00a0dc; --accent-ink:#ffffff; --accent-soft:#e2eefb;
+  --ok:#0f7038; --ok-soft:#e0f4e8; --err:#c0271d; --err-soft:#fdeceb;
+  --warn:#8a5a00; --warn-soft:#fdf2d9;
+  --rojo-metro:#e30613; --azul-metro:#0d47a1;
+  --radius:14px; --shadow:0 1px 2px rgba(15,25,45,.07), 0 3px 10px rgba(15,25,45,.05);
+  --tap:60px; --linea:var(--accent);
+}
+html[data-tema="oscuro"]{
+  --bg:#0e1116; --surface:#171b22; --surface-2:#212733; --text:#e8ecf3; --muted:#98a2b5;
+  --border:#2a313d; --accent:#4da3ff; --accent-2:#2ad0e0; --accent-ink:#08111c; --accent-soft:#15263a;
+  --ok:#4ec27f; --ok-soft:#12241a; --err:#ff7b72; --err-soft:#2c1815;
+  --warn:#e5b567; --warn-soft:#2a2211;
+  --shadow:0 1px 2px rgba(0,0,0,.45), 0 3px 12px rgba(0,0,0,.32);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font:400 18px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.wrap{max-width:780px;margin:0 auto;padding:14px 16px 96px}
+h1,h2,h3{line-height:1.2;margin:0 0 .45em;letter-spacing:-.022em;font-weight:800}
+h1{font-size:1.8rem} h2{font-size:1.42rem} h3{font-size:1.1rem}
+p{margin:0 0 1em}
+a{color:var(--accent)}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+
+/* ---------- barra superior: banda de señalética ---------- */
+.top{
+  display:flex;align-items:center;gap:10px;min-height:58px;margin:0 -16px 16px;padding:6px 16px;
+  background:var(--surface);border-bottom:3px solid var(--linea);
+  position:sticky;top:0;z-index:30
+}
+.top .titulo{font-weight:750;font-size:1.04rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.015em}
+.iconbtn{
+  min-width:46px;min-height:46px;display:inline-flex;align-items:center;justify-content:center;
+  background:var(--surface-2);border:1px solid var(--border);border-radius:12px;cursor:pointer;font-size:1.2rem
+}
+.iconbtn:active{transform:scale(.95)}
+.marca{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+.marca img{display:block;height:26px;width:auto}
+.placa{background:#fff;border-radius:10px;padding:7px 11px;display:inline-flex;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.placa img{display:block;height:30px;width:auto}
+
+/* ---------- indicador de línea (círculo numerado) ---------- */
+.roundel{
+  width:46px;height:46px;border-radius:50%;flex:0 0 auto;
+  display:inline-flex;align-items:center;justify-content:center;
+  color:#fff;font-weight:800;font-size:1.18rem;letter-spacing:-.03em;
+  box-shadow:inset 0 0 0 3px rgba(255,255,255,.28)
+}
+.roundel.pequeno{width:34px;height:34px;font-size:.92rem;box-shadow:inset 0 0 0 2px rgba(255,255,255,.28)}
+
+/* ---------- rótulo de señalética ---------- */
+.rotulo{font-size:.76rem;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.seccion-tit{font-size:.78rem;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin:26px 0 11px}
+
+/* ---------- botones ---------- */
+.btn{
+  display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
+  min-height:var(--tap);padding:14px 18px;border-radius:var(--radius);
+  border:1px solid var(--border);background:var(--surface);cursor:pointer;
+  font-size:1.04rem;font-weight:700;text-align:center;box-shadow:var(--shadow);
+  transition:transform .08s ease, background .15s ease;letter-spacing:-.01em
+}
+.btn:active{transform:scale(.985)}
+.btn.primario{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn.sutil{background:transparent;box-shadow:none;font-weight:600;color:var(--muted)}
+.btn.peligro{color:var(--err);border-color:var(--err)}
+.btn[disabled]{opacity:.45;pointer-events:none}
+.fila{display:flex;gap:10px;flex-wrap:wrap}
+.fila>*{flex:1 1 130px}
+
+/* ---------- menú principal ---------- */
+.menu{display:grid;gap:11px}
+.menu .btn{justify-content:flex-start;text-align:left;min-height:84px;padding:15px 17px;position:relative;overflow:hidden}
+.menu .btn::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--linea)}
+.menu .emoji{font-size:1.75rem;line-height:1;flex:0 0 auto;margin-left:6px}
+.menu .txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.menu .txt b{font-size:1.1rem;font-weight:800;letter-spacing:-.02em}
+.menu .txt span{font-size:.9rem;font-weight:450;color:var(--muted);line-height:1.4}
+.menu .btn.primario .txt span{color:rgba(255,255,255,.86)}
+html[data-tema="oscuro"] .menu .btn.primario .txt span{color:rgba(8,17,28,.78)}
+
+/* ---------- tarjetas ---------- */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);margin-bottom:14px}
+.card.plano{box-shadow:none}
+.card.rail{border-left:6px solid var(--linea);padding-left:18px}
+.aviso{background:var(--warn-soft);border:1px solid transparent;border-left:5px solid var(--warn);border-radius:11px;padding:12px 14px;font-size:.92rem;margin:0 0 14px}
+.aviso.info{background:var(--accent-soft);border-left-color:var(--accent)}
+
+/* ---------- portada ---------- */
+.hero{
+  position:relative;overflow:hidden;border-radius:18px;padding:20px 20px 18px;margin-bottom:16px;
+  background:linear-gradient(135deg,#004a86 0%,#0065b3 55%,#0090cf 130%);
+  color:#fff;box-shadow:0 8px 26px rgba(8,60,116,.26)
+}
+html[data-tema="oscuro"] .hero{background:linear-gradient(135deg,#08294a 0%,#0b3a6b 55%,#0a5c86 130%);color:#eaf4ff;box-shadow:0 8px 26px rgba(0,0,0,.5)}
+.hero .via{position:absolute;right:-16px;bottom:-12px;opacity:.18;pointer-events:none;z-index:0}
+.hero>*{position:relative;z-index:1}
+.hero .cabecera-hero{display:flex;align-items:center;gap:11px;margin-bottom:14px;position:relative;z-index:1}
+.hero .saludo{font-size:1.1rem;font-weight:800;letter-spacing:-.02em}
+.hero .cifra{display:flex;align-items:baseline;gap:11px}
+.hero .cifra b{font-size:3.15rem;font-weight:820;line-height:1;letter-spacing:-.04em}
+.hero .cifra span{font-size:1rem;opacity:.95;font-weight:500}
+.hero .rachah{font-size:.87rem;opacity:.9;margin:6px 0 16px}
+.hero .btn{background:#fff;color:#004a86;border:0;box-shadow:0 2px 10px rgba(0,0,0,.16)}
+html[data-tema="oscuro"] .hero .btn{background:#eaf4ff;color:#0b3a6b}
+.racha{font-size:.89rem;color:var(--muted);margin-top:2px}
+
+/* ---------- listas ---------- */
+.lista{display:grid;gap:10px}
+.item{
+  display:flex;align-items:center;gap:14px;width:100%;min-height:var(--tap);
+  padding:13px 15px;border-radius:var(--radius);border:1px solid var(--border);
+  background:var(--surface);cursor:pointer;text-align:left;box-shadow:var(--shadow)
+}
+.item:active{transform:scale(.99)}
+.item .cod{
+  flex:0 0 auto;min-width:44px;height:34px;display:inline-flex;align-items:center;justify-content:center;
+  background:var(--surface-2);border-radius:9px;font-size:.85rem;font-weight:800;color:var(--muted);padding:0 8px
+}
+.item .cod.color{color:#fff}
+.item .cuerpo{flex:1;min-width:0}
+.item .cuerpo b{display:block;font-weight:700;font-size:1rem;letter-spacing:-.015em}
+.item .cuerpo small{color:var(--muted);font-size:.84rem}
+.item .flecha{color:var(--muted);flex:0 0 auto;font-size:1.2rem}
+
+/* ---------- diagrama de línea: los temas como estaciones ---------- */
+.diagrama{display:block;margin:2px 0 6px}
+.estacion{
+  display:flex;gap:14px;width:100%;background:none;border:0;padding:0;cursor:pointer;
+  text-align:left;color:inherit;align-items:stretch
+}
+.estacion .raiz{position:relative;width:36px;flex:0 0 36px}
+.estacion .raiz::before{
+  content:"";position:absolute;left:50%;transform:translateX(-50%);
+  top:0;bottom:0;width:7px;background:var(--linea);border-radius:4px
+}
+.estacion:first-of-type .raiz::before{top:24px}
+.estacion:last-of-type .raiz::before{bottom:auto;height:24px}
+.estacion .parada{
+  position:absolute;left:50%;top:24px;transform:translate(-50%,-50%);
+  width:19px;height:19px;border-radius:50%;background:var(--surface);
+  border:5px solid var(--linea);z-index:2;transition:background .2s ease
+}
+.estacion.hecha .parada{background:var(--linea);box-shadow:0 0 0 4px var(--accent-soft)}
+.estacion .caja{
+  flex:1;min-width:0;margin-bottom:11px;padding:13px 15px;border-radius:var(--radius);
+  background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow);
+  display:flex;align-items:center;gap:12px
+}
+.estacion:active .caja{transform:scale(.99)}
+.estacion .caja .cuerpo{flex:1;min-width:0}
+.estacion .caja b{display:block;font-weight:700;font-size:1rem;letter-spacing:-.015em}
+.estacion .caja small{color:var(--muted);font-size:.84rem}
+.estacion .caja .flecha{color:var(--muted);font-size:1.2rem}
+
+/* ---------- barras de progreso ---------- */
+.barra{height:10px;background:var(--surface-2);border-radius:99px;overflow:hidden}
+.barra i{display:block;height:100%;background:var(--linea);border-radius:99px;transition:width .5s ease}
+.linea-parte{height:7px;border-radius:99px;margin:2px 0 16px;background:var(--linea)}
+.punto{display:inline-block;width:11px;height:11px;border-radius:50%;flex:0 0 auto;margin-right:9px}
+
+/* ---------- preguntas ---------- */
+.contador{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:.86rem;color:var(--muted);margin-bottom:8px}
+.contador .rotulo{font-size:.76rem}
+.enunciado{font-size:1.19rem;font-weight:700;line-height:1.42;margin:6px 0 18px;letter-spacing:-.015em}
+.opciones{display:grid;gap:10px}
+.op{
+  display:flex;align-items:flex-start;gap:13px;width:100%;min-height:var(--tap);
+  padding:13px 15px;border-radius:var(--radius);border:2px solid var(--border);
+  background:var(--surface);cursor:pointer;text-align:left;font-size:1.01rem;line-height:1.42;color:inherit
+}
+.op:hover:not([disabled]){border-color:var(--accent)}
+.op .tecla{
+  flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--surface-2);
+  display:inline-flex;align-items:center;justify-content:center;font-size:.88rem;font-weight:800;color:var(--muted)
+}
+.op[disabled]{cursor:default}
+.op.correcta{border-color:var(--ok);background:var(--ok-soft)}
+.op.correcta .tecla{background:var(--ok);color:#fff}
+.op.fallada{border-color:var(--err);background:var(--err-soft)}
+.op.fallada .tecla{background:var(--err);color:#fff}
+.op.marcada{border-color:var(--accent);background:var(--accent-soft)}
+.op.marcada .tecla{background:var(--accent);color:var(--accent-ink)}
+@keyframes acierto{0%{transform:scale(1)}40%{transform:scale(1.022)}100%{transform:scale(1)}}
+@keyframes fallo{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(2px)}}
+.anim-ok{animation:acierto .34s ease}
+.anim-err{animation:fallo .38s ease}
+@media (prefers-reduced-motion:reduce){.anim-ok,.anim-err{animation:none}.btn:active,.item:active,.iconbtn:active,.estacion:active .caja{transform:none}}
+
+.feedback{margin-top:16px;border-radius:var(--radius);padding:15px 16px;border:1px solid var(--border);border-left-width:5px}
+.feedback.bien{background:var(--ok-soft);border-color:var(--ok)}
+.feedback.mal{background:var(--err-soft);border-color:var(--err)}
+.feedback .cab{font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:8px;letter-spacing:-.01em}
+.feedback .exp{font-size:.96rem;line-height:1.58}
+.fuente{font-size:.83rem;color:var(--muted);margin-top:10px;word-break:break-word}
+.fuente a{color:var(--muted)}
+.chip-volatil{display:inline-block;background:var(--warn-soft);color:var(--warn);border-radius:99px;padding:3px 11px;font-size:.77rem;font-weight:700;margin-bottom:10px}
+
+/* ---------- fichas ---------- */
+.ficha{
+  min-height:230px;display:flex;align-items:center;justify-content:center;text-align:center;
+  padding:28px 22px;font-size:1.18rem;line-height:1.5;cursor:pointer;user-select:none;
+  background:var(--surface);border:2px dashed var(--border);border-radius:var(--radius);font-weight:600
+}
+.ficha.girada{border-style:solid;border-color:var(--linea);background:var(--accent-soft);font-weight:500}
+.ficha-pista{text-align:center;color:var(--muted);font-size:.87rem;margin:10px 0 16px}
+
+/* ---------- resultado ---------- */
+.nota{text-align:center;padding:10px 0 4px}
+.nota .valor{font-size:3.7rem;font-weight:820;line-height:1;letter-spacing:-.04em}
+.nota .valor.bien{color:var(--ok)} .nota .valor.mal{color:var(--err)}
+.nota .sub{color:var(--muted);font-size:1rem;margin-top:6px}
+.veredicto{display:inline-block;padding:8px 20px;border-radius:99px;font-weight:800;margin-top:12px;letter-spacing:.02em}
+.veredicto.bien{background:var(--ok-soft);color:var(--ok)} .veredicto.mal{background:var(--err-soft);color:var(--err)}
+.tabla{width:100%;border-collapse:collapse;font-size:.94rem}
+.tabla th,.tabla td{text-align:left;padding:9px 6px;border-bottom:1px solid var(--border)}
+.tabla th{font-size:.76rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:800}
+.tabla td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* ---------- resumen de estudio ---------- */
+.md{font-size:1.05rem;line-height:1.72}
+.md h4{font-size:1.04rem;margin:1.35em 0 .4em;font-weight:800;letter-spacing:-.015em}
+.md ul{padding-left:1.25em;margin:0 0 1em}
+.md li{margin-bottom:.5em}
+.md li::marker{color:var(--linea)}
+.md strong{font-weight:750}
+.md em{font-style:italic}
+.md .tabla-env{overflow-x:auto;margin:0 0 1.1em;-webkit-overflow-scrolling:touch}
+.md .tabla{font-size:.95rem;min-width:100%}
+.md .tabla td:first-child{font-weight:600}
+.card.figura{padding:16px 14px;overflow-x:auto}
+.card.figura svg{max-width:100%}
+.md .nota-md{
+  border-left:5px solid var(--linea);background:var(--surface-2);
+  padding:11px 14px;border-radius:0 10px 10px 0;margin:0 0 1.1em;font-size:.99rem
+}
+
+/* ---------- buscador ---------- */
+.buscador{
+  width:100%;min-height:56px;padding:14px 16px;font:inherit;
+  background:var(--surface);color:var(--text);
+  border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px
+}
+.vacio{text-align:center;color:var(--muted);padding:36px 12px}
+
+/* ---------- cronómetro ---------- */
+.crono{font-variant-numeric:tabular-nums;font-weight:800;background:var(--surface-2);padding:5px 12px;border-radius:99px;font-size:.93rem}
+.crono.rojo{background:var(--err-soft);color:var(--err)}
+
+/* ---------- gráfica ---------- */
+.grafica{width:100%;height:auto;display:block;overflow:visible}
+
+/* ---------- psicotécnicos ---------- */
+.serie{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;margin:18px 0 6px}
+.serie span{
+  min-width:62px;padding:12px 10px;background:var(--surface-2);border-radius:11px;
+  text-align:center;font-size:1.22rem;font-weight:800;font-variant-numeric:tabular-nums
+}
+.serie span.hueco{background:var(--accent-soft);color:var(--accent);border:2px dashed var(--accent)}
+.figs{display:flex;flex-wrap:wrap;gap:11px;justify-content:center;margin:16px 0}
+.fig{background:var(--surface-2);border-radius:11px;padding:8px}
+
+.pie{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--border);padding:10px 16px calc(10px + env(safe-area-inset-bottom));z-index:20}
+.pie .wrap-pie{max-width:780px;margin:0 auto}
+.oculto{display:none !important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <button class="iconbtn oculto" id="btn-atras" title="Volver" aria-label="Volver">←</button>
+    <span class="marca" id="marca" aria-hidden="true"></span>
+    <div class="titulo" id="titulo-pantalla">Oposición Metro</div>
+    <button class="iconbtn" id="btn-buscar" title="Buscar" aria-label="Buscar">🔍</button>
+    <button class="iconbtn" id="btn-tema" title="Cambiar entre modo claro y oscuro" aria-label="Cambiar modo claro u oscuro">🌙</button>
+  </div>
+  <main id="app" tabindex="-1"></main>
+</div>
+<div class="pie oculto" id="pie"><div class="wrap-pie" id="pie-contenido"></div></div>
+<script>
+/*__DATOS__*/
+</script>
+<script>
+/*__APP__*/
+</script>
+</body>
+</html>

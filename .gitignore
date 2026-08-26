@@ -1,0 +1,10 @@
+dist/
+fuentes-oficiales/
+node_modules/
+.wrangler/
+.DS_Store
+
+# binarios compilados de las herramientas de OCR (el código fuente sí se versiona)
+herramientas/ocr
+herramientas/ocrxy
+herramientas/render

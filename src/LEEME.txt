@@ -1,0 +1,49 @@
+OPOSICIÓN METRO DE MADRID - MAQUINISTA
+======================================
+
+Andrei, esto es para ti. Cinco cosas y ya:
+
+0. Lo tienes en internet aquí, y funciona en el móvil:
+   https://oposicion-metro.pages.dev
+
+1. Guárdala en la pantalla de inicio del móvil y te queda como una aplicación más.
+   Y si algún día no tienes cobertura, haz doble clic en el archivo EMPEZAR-AQUI.html:
+   es la misma aplicación, funciona sin internet.
+
+2. No hay que instalar nada, ni registrarse, ni pagar. Abres y estudias.
+
+3. Lo que estudies se guarda solo. Cierra cuando quieras y sigue otro día.
+
+4. Empieza por "Repaso inteligente": cada día te pone lo justo, y con eso basta.
+
+5. Si algún dato te chirría, mira la fuente: cada pregunta enlaza al PDF oficial de Metro.
+
+
+AVISO IMPORTANTE SOBRE EL MÓVIL
+-------------------------------
+Si usas la aplicación en el ordenador Y en el móvil, cada uno lleva su propia
+cuenta por separado. Lo que estudies en uno no aparece en el otro.
+
+Para pasar el progreso de un aparato a otro:
+  - En el aparato donde vas por delante: Copia de seguridad > "Guardar mi progreso".
+    Se te descarga un archivo.
+  - Pásate ese archivo al otro aparato (por correo, WhatsApp, lo que uses).
+  - Allí: Copia de seguridad > "Recuperar desde un archivo".
+
+Hazlo de vez en cuando aunque uses un solo aparato: si borras el historial del
+navegador, se borra también lo que llevas estudiado.
+
+
+Y LO MÁS IMPORTANTE
+-------------------
+Esto es material de apoyo, preparado con ayuda de inteligencia artificial a partir
+del temario y las bases que Metro de Madrid publica en su web. NO sustituye a las
+bases oficiales. Antes del examen, contrasta siempre con la convocatoria:
+
+  https://www.metromadrid.es/es/oferta-empleo/maquinista-de-traccion-electrica-y-jefea-de-sector-0
+
+El logotipo de Metro es marca registrada de Metro de Madrid, S.A. Aparece aquí
+porque esto es una herramienta privada de estudio, sin ánimo de lucro y sin
+ninguna relación con la empresa.
+
+Mucha suerte, Andrei.

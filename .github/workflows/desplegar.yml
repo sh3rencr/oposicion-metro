@@ -1,0 +1,87 @@
+name: Compilar y desplegar
+
+# Se dispara al empujar a main y también a mano desde la pestaña Actions.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'contenido/**'
+      - 'src/**'
+      - 'build.js'
+      - '.github/workflows/desplegar.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: despliegue-paginas
+  cancel-in-progress: true
+
+jobs:
+  desplegar:
+    name: Compilar el contenido y publicarlo
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Los JSON de contenido se generan a partir de contenido/fuente/parte-*.js.
+      # Si alguien los ha editado a mano, se habrán desincronizado: aquí se detecta.
+      - name: Comprobar que los JSON coinciden con sus ficheros fuente
+        run: |
+          node contenido/fuente/_fusionar.js
+          if ! git diff --quiet -- contenido/temario.json contenido/preguntas.json; then
+            echo "✖ Los JSON de contenido no coinciden con contenido/fuente/parte-*.js."
+            echo "  Alguien los ha editado a mano. Ejecuta esto en local y vuelve a subir:"
+            echo "     node contenido/fuente/_fusionar.js && node build.js"
+            git --no-pager diff --stat -- contenido/temario.json contenido/preguntas.json
+            exit 1
+          fi
+          echo "✔ Contenido sincronizado."
+
+      # build.js valida el contenido y termina con error si algo no cuadra:
+      # una pregunta sin fuente, un epígrafe inexistente, opciones repetidas,
+      # un id duplicado o un dato volátil sin fecha. Si falla, no se despliega.
+      - name: Compilar y validar el contenido
+        run: node build.js
+
+      - name: Comprobar que la app es autocontenida
+        run: |
+          set -e
+          F=dist/web/index.html
+          test -f "$F"
+          for patron in 'fetch(' 'XMLHttpRequest' 'cdn\.' 'unpkg' 'jsdelivr'; do
+            if grep -qF "$patron" "$F"; then
+              echo "✖ La app hace referencia a «$patron»: debe funcionar sin red."
+              exit 1
+            fi
+          done
+          echo "✔ Sin dependencias externas."
+
+      - name: Resumen del contenido
+        run: |
+          node -e '
+            const t = require("./contenido/temario.json"), b = require("./contenido/preguntas.json");
+            const eps = t.partes.flatMap(p => p.epigrafes);
+            const l = [
+              "| Dato | Valor |", "|---|---|",
+              `| Partes | ${t.partes.length} |`,
+              `| Temas | ${eps.length} |`,
+              `| Preguntas | ${b.preguntas.length} |`,
+              `| Fichas | ${eps.reduce((a, e) => a + e.fichas.length, 0)} |`,
+              `| Preguntas sin fuente | ${b.preguntas.filter(p => !p.fuente).length} |`
+            ].join("\n");
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, "## Contenido publicado\n\n" + l + "\n");
+          '
+
+      - name: Publicar en Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist/web --project-name=oposicion-metro --branch=production
