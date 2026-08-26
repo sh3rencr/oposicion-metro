@@ -43,7 +43,15 @@ reales son `contenido/fuente/parte-1.js` … `parte-7.js`. Ver [MANTENIMIENTO.md
 Cada empujón a `main` que toque `contenido/`, `src/` o `build.js` compila, valida y publica en
 Cloudflare Pages. También puede lanzarse a mano desde la pestaña **Actions**.
 
-Requiere dos secretos en el repositorio: `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID`.
+Requiere dos secretos en el repositorio:
+
+| Secreto | Cómo se obtiene |
+|---|---|
+| `CLOUDFLARE_ACCOUNT_ID` | Ya configurado |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare → **Mi perfil → Tokens de API → Crear token** → plantilla **«Editar Cloudflare Workers»**. Se copia una sola vez y se pega en GitHub → *Settings → Secrets and variables → Actions* |
+
+El token da permiso de escritura sobre Cloudflare Pages: guárdalo solo como secreto del
+repositorio y no lo pegues en ningún otro sitio.
 
 ## Documentación
 
