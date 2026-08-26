@@ -3,7 +3,15 @@
 Aplicación de estudio para la convocatoria de **Maquinista de Tracción Eléctrica y Jefe/a de
 Sector** de Metro de Madrid (BOCM núm. 187, de 7 de agosto de 2026, 30 plazas).
 
-**En línea:** <https://oposicion-metro.pages.dev>
+**En línea, en dos sitios a la vez:**
+
+| Dirección | Servida desde |
+|---|---|
+| <https://sh3rencr.github.io/oposicion-metro/> | GitHub |
+| <https://oposicion-metro.pages.dev> | Cloudflare |
+
+Se publica en ambos en cada despliegue. Están en redes distintas a propósito: si un operador
+no enruta hacia una, la otra sigue accesible (ver [INCIDENCIAS.md](INCIDENCIAS.md)).
 
 Un solo fichero HTML autocontenido: sin dependencias, sin CDN, sin servidor. Funciona abierto
 desde el disco y sin conexión. El progreso se guarda en el navegador.

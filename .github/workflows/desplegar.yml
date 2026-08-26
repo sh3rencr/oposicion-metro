@@ -79,6 +79,11 @@ jobs:
             require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, "## Contenido publicado\n\n" + l + "\n");
           '
 
+      - name: Guardar el resultado para GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/web
+
       - name: Publicar en Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
@@ -103,3 +108,36 @@ jobs:
           echo "Preguntas servidas: $n de $esperadas"
           test "$n" = "$esperadas" || { echo "✖ La web no sirve todas las preguntas"; exit 1; }
           echo "✔ La web responde y sirve el contenido correcto."
+
+  # Segundo destino. Cloudflare y GitHub sirven desde redes distintas: si un
+  # operador no enruta hacia una de ellas, la otra sigue accesible.
+  publicar-en-github:
+    name: Publicar también en GitHub Pages
+    needs: desplegar
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.despliegue.outputs.page_url }}
+    steps:
+      - name: Publicar
+        id: despliegue
+        uses: actions/deploy-pages@v4
+
+      - name: Comprobar que responde
+        run: |
+          set -e
+          url="${{ steps.despliegue.outputs.page_url }}"
+          echo "URL: $url"
+          for i in 1 2 3 4 5 6; do
+            codigo=$(curl -sSL -m 25 -o /tmp/gh.html -w '%{http_code}' "$url" || echo 000)
+            [ "$codigo" = "200" ] && break
+            echo "intento $i: HTTP $codigo"; sleep 15
+          done
+          test "$codigo" = "200" || { echo "✖ No responde (HTTP $codigo)"; exit 1; }
+          n=$(grep -o '"id":"p-' /tmp/gh.html | wc -l | tr -d ' ')
+          echo "Preguntas servidas: $n"
+          test "$n" -gt 0 || { echo "✖ No sirve el contenido"; exit 1; }
+          echo "✔ GitHub Pages responde correctamente."
