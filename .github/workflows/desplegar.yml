@@ -85,3 +85,21 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist/web --project-name=oposicion-metro --branch=production
+
+      # Comprobación desde fuera: verifica que la web responde de verdad y sirve
+      # el contenido esperado. Se ejecuta en la red de GitHub, no en la de casa.
+      - name: Comprobar que la web responde
+        run: |
+          set -e
+          echo "IP que resuelve:  $(getent hosts oposicion-metro.pages.dev | awk '{print $1}' | tr '\n' ' ')"
+          for i in 1 2 3 4 5; do
+            codigo=$(curl -sS -m 25 -o /tmp/web.html -w '%{http_code}' https://oposicion-metro.pages.dev/ || echo 000)
+            [ "$codigo" = "200" ] && break
+            echo "intento $i: HTTP $codigo"; sleep 10
+          done
+          test "$codigo" = "200" || { echo "✖ La web no responde (HTTP $codigo)"; exit 1; }
+          n=$(grep -o '"id":"p-' /tmp/web.html | wc -l | tr -d ' ')
+          esperadas=$(node -e 'console.log(require("./contenido/preguntas.json").preguntas.length)')
+          echo "Preguntas servidas: $n de $esperadas"
+          test "$n" = "$esperadas" || { echo "✖ La web no sirve todas las preguntas"; exit 1; }
+          echo "✔ La web responde y sirve el contenido correcto."
