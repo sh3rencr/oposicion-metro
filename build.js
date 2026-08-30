@@ -469,7 +469,10 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
   if (event.request.mode === 'navigate') {
     event.respondWith(fetch(event.request).then(response => {
-      const copia = response.clone(); caches.open(CACHE).then(cache => cache.put('./index.html', copia)); return response;
+      // Solo se guarda una respuesta buena: cachear un error dejaría a la app
+      // mostrando esa página de error cuando se abriese sin conexión.
+      if (response && response.ok) { const copia = response.clone(); caches.open(CACHE).then(cache => cache.put('./index.html', copia)); }
+      return response;
     }).catch(() => caches.match('./index.html')));
     return;
   }

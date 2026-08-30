@@ -1412,7 +1412,7 @@ function pRepaso(c) {
     c.appendChild(el('button', { class: 'btn', style: 'margin-top:10px', onclick: function () {
       var f = E.fallos.map(function (id) { return PREG_POR_ID[id]; }).filter(Boolean);
       reemplazar(pSesion, 'Mis fallos', { preguntas: baraja(f), inmediato: true, modo: 'test', etiqueta: 'Mis fallos' });
-    } }, ['Solo mis ' + E.fallos.length + ' preguntas falladas']));
+    } }, [E.fallos.length === 1 ? 'Solo mi pregunta fallada' : 'Solo mis ' + E.fallos.length + ' preguntas falladas']));
   }
 }
 
